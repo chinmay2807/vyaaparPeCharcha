@@ -61,4 +61,4 @@ The invoice is operational only. This MVP does not claim GST, e-invoice, or stat
 
 ## Android / frontend app
 
-The `android/` directory holds a Capacitor-wrapped React + Vite frontend (the voice-order UI with the 3D orb) that talks to this backend over the local network. See its `package.json` for scripts; install dependencies with `npm install`, run `npm run build`, then `npx cap sync android` before opening the `android/` project in Android Studio or running `gradlew assembleDebug`.
+The `app/` directory holds the Capacitor-wrapped React + Vite frontend (the voice-order UI with the 3D orb) and its `app/android/` native project, which talk to this backend over the local network. From `app/`: install dependencies with `npm install`, run `npm run build`, then `npx cap sync android` before opening `app/android/` in Android Studio or running `gradlew assembleDebug` from that folder.
