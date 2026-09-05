@@ -58,3 +58,7 @@ Keep `vyapaar-api` running in one terminal. In another terminal, pass the record
 It prints the Sarvam transcript and extracted draft, prompts for any clarification, asks before confirmation, and downloads the resulting invoice and confirmation audio under `artifacts/<voice-job-id>/`.
 
 The invoice is operational only. This MVP does not claim GST, e-invoice, or statutory accounting compliance. See [privacy and retention](docs/PRIVACY.md) and the [acceptance matrix](docs/ACCEPTANCE.md).
+
+## Android / frontend app
+
+The `android/` directory holds a Capacitor-wrapped React + Vite frontend (the voice-order UI with the 3D orb) that talks to this backend over the local network. See its `package.json` for scripts; install dependencies with `npm install`, run `npm run build`, then `npx cap sync android` before opening the `android/` project in Android Studio or running `gradlew assembleDebug`.
