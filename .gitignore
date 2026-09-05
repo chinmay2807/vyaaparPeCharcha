@@ -10,11 +10,25 @@ htmlcov/
 data/*.json
 data/*.tmp
 
-# Node / frontend
+# Node / frontend (app/)
 node_modules/
-dist
-dist-ssr
+dist/
+dist-ssr/
 *.local
+app/.vite/
+
+# Android / Gradle / Capacitor (app/android/)
+app/android/.gradle/
+app/android/build/
+app/android/app/build/
+app/android/local.properties
+app/android/capacitor-cordova-android-plugins/
+app/android/app/src/main/assets/public/
+app/android/app/src/main/assets/capacitor.config.json
+app/android/app/src/main/assets/capacitor.plugins.json
+app/android/app/src/main/res/xml/config.xml
+*.apk
+*.aab
 
 # Logs
 logs
