@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: vyapaar
+      POSTGRES_USER: vyapaar
+      POSTGRES_PASSWORD: local_only_change_me
+    ports:
+      - "5432:5432"
+    volumes:
+      - vyapaar_pg:/var/lib/postgresql/data
+      - ./infra/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vyapaar -d vyapaar"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  vyapaar_pg:

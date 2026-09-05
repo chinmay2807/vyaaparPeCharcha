@@ -1,0 +1,39 @@
+[project]
+name = "vyapaar-pe-charcha"
+version = "0.1.0"
+description = "Voice-note ERP backend for oral-first Indian merchants"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.141.1,<0.142",
+  "python-multipart>=0.0.32,<0.1",
+  "python-dotenv>=1.2.3,<2",
+  "uvicorn[standard]>=0.52.4,<0.53",
+]
+
+[project.scripts]
+vyapaar-api = "vyapaar.api:main"
+vyapaar-reset = "vyapaar.store:reset_main"
+vyapaar-try-audio = "vyapaar.try_audio:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = true
+
+[project.optional-dependencies]
+dev = ["httpx2>=2.12,<3"]
+
+[tool.uv.build-backend]
+module-name = "vyapaar"
+module-root = "src"
+
+[tool.pyright]
+pythonVersion = "3.11"
+include = ["src", "tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
