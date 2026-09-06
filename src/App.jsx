@@ -24,6 +24,31 @@ import {
   ChevronRight
 } from "lucide-react";
 
+// Integrated Logo Component with fallback
+function AppLogo({ className = "w-8 h-8" }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!imgError) {
+    return (
+      <img
+        src="/logo.png"
+        alt="Vyapaar Charcha Logo"
+        onError={() => setImgError(true)}
+        className={`${className} object-contain rounded-lg`}
+      />
+    );
+  }
+
+  // Fallback icon if logo.png is not found
+  return (
+    <div className={`${className} rounded-xl bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE] p-0.5 flex items-center justify-center shadow-xs flex-shrink-0`}>
+      <div className="w-full h-full bg-[#F2FFF6] rounded-lg flex items-center justify-center relative overflow-hidden">
+        <Sparkles className="w-4 h-4 text-[#238689]" />
+      </div>
+    </div>
+  );
+}
+
 const TRANSLATIONS = {
   en: {
     appTitle: "Vyapaar",
@@ -76,7 +101,13 @@ const TRANSLATIONS = {
     navOrders: "Orders",
     navSpeak: "Voice Pulse",
     navLedger: "Ledger",
-    navProfile: "Ramesh"
+    navProfile: "Ramesh",
+    partyNames: {
+      ramesh: "Ramesh Store",
+      iqbal: "Iqbal General Store",
+      gupta: "Gupta Wholesaler",
+      kavita: "Kavita Supermart"
+    }
   },
   hinglish: {
     appTitle: "Vyapaar",
@@ -129,7 +160,13 @@ const TRANSLATIONS = {
     navOrders: "Orders",
     navSpeak: "Voice Pulse",
     navLedger: "Khata",
-    navProfile: "Ramesh"
+    navProfile: "Ramesh",
+    partyNames: {
+      ramesh: "Ramesh Store",
+      iqbal: "Iqbal General Store",
+      gupta: "Gupta Wholesaler",
+      kavita: "Kavita Supermart"
+    }
   },
   hi: {
     appTitle: "व्यापार",
@@ -182,7 +219,13 @@ const TRANSLATIONS = {
     navOrders: "ऑर्डर्स",
     navSpeak: "वॉइस पल्स",
     navLedger: "खाता",
-    navProfile: "रमेश"
+    navProfile: "रमेश",
+    partyNames: {
+      ramesh: "रमेश स्टोर",
+      iqbal: "इक़बाल जनरल स्टोर",
+      gupta: "गुप्ता होलसेलर",
+      kavita: "कविता सुपरमार्ट"
+    }
   },
   ta: {
     appTitle: "வியாபார்",
@@ -235,14 +278,20 @@ const TRANSLATIONS = {
     navOrders: "ஆர்டர்கள்",
     navSpeak: "வாய்ஸ் பல்ஸ்",
     navLedger: "கணக்கு",
-    navProfile: "ரமேஷ்"
+    navProfile: "ரமேஷ்",
+    partyNames: {
+      ramesh: "ரமேஷ் ஸ்டோர்",
+      iqbal: "இக்பால் ஜெனரல் ஸ்டோர்",
+      gupta: "குப்தா ஹோல்சேலர்",
+      kavita: "கவிதா சூப்பர் மார்ட்"
+    }
   }
 };
 
 const INITIAL_ORDERS = [
   {
     id: "ORD-041",
-    customer: "Ramesh Store",
+    customerKey: "ramesh",
     phone: "+91 98765 43210",
     items: [
       { name: "Sprite", qty: "6 peti" },
@@ -258,7 +307,7 @@ const INITIAL_ORDERS = [
   },
   {
     id: "ORD-040",
-    customer: "Iqbal General Store",
+    customerKey: "iqbal",
     phone: "+91 98450 12345",
     items: [
       { name: "Atta 10kg", qty: "5 bags" },
@@ -273,7 +322,7 @@ const INITIAL_ORDERS = [
   },
   {
     id: "ORD-039",
-    customer: "Gupta Wholesaler",
+    customerKey: "gupta",
     phone: "+91 97123 45678",
     items: [{ name: "Basmati Rice 25kg", qty: "2 bags" }],
     delivery: "Pending",
@@ -285,7 +334,7 @@ const INITIAL_ORDERS = [
   },
   {
     id: "ORD-038",
-    customer: "Kavita Supermart",
+    customerKey: "kavita",
     phone: "+91 99001 88223",
     items: [
       { name: "Surf Excel 1kg", qty: "10 packs" },
@@ -361,7 +410,7 @@ export default function VyapaarApp() {
 
       const newEntry = {
         id: `ORD-0${orders.length + 42}`,
-        customer: "Ramesh Store",
+        customerKey: "ramesh",
         phone: "+91 98765 43210",
         items: [
           { name: "Sprite", qty: "6 peti" },
@@ -409,13 +458,9 @@ export default function VyapaarApp() {
         <div className="absolute bottom-[20%] right-[-20%] w-[300px] h-[300px] bg-gradient-to-tr from-[#238689]/15 to-[#25C5E9]/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Top Header */}
-        <header className="px-5 py-3.5 border-b border-[#CAFFDE] bg-[#F2FFF6]/80 backdrop-blur-md sticky top-0 z-20 flex justify-between items-center shadow-xs">
+        <header className="px-5 py-3 border-b border-[#CAFFDE] bg-[#F2FFF6]/80 backdrop-blur-md sticky top-0 z-20 flex justify-between items-center shadow-xs">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE] p-0.5 shadow-xs flex items-center justify-center flex-shrink-0">
-              <div className="w-full h-full bg-white rounded-full flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-[#238689]" />
-              </div>
-            </div>
+            <AppLogo className="w-8 h-8" />
             <div>
               <h1 className="text-sm font-bold tracking-tight text-[#021225] flex items-center gap-1">
                 {t.appTitle} <span className="text-[#238689]">{t.appSubtitle}</span>
@@ -481,10 +526,11 @@ export default function VyapaarApp() {
               
               {/* Profile Card */}
               <div className="rounded-[28px] p-6 bg-white/80 backdrop-blur-md border border-[#CAFFDE] shadow-sm flex flex-col space-y-4">
-                <div>
+                <div className="flex justify-between items-start">
                   <span className="text-[10px] tracking-wide uppercase font-bold text-[#238689] bg-[#CAFFDE]/50 border border-[#CAFFDE] px-3 py-1 rounded-full inline-block">
                     {t.storeActive}
                   </span>
+                  <AppLogo className="w-7 h-7 opacity-85" />
                 </div>
 
                 <div className="space-y-1">
@@ -585,7 +631,9 @@ export default function VyapaarApp() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-[#021225]">{item.customer}</span>
+                        <span className="text-xs font-bold text-[#021225]">
+                          {t.partyNames[item.customerKey] || t.partyNames.ramesh}
+                        </span>
                         <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 border border-[#CAFFDE] px-1.5 py-0.2 rounded-full font-semibold">
                           {item.id}
                         </span>
@@ -613,7 +661,9 @@ export default function VyapaarApp() {
                 
                 <div className="flex items-center space-x-2 bg-white/90 border border-[#CAFFDE] px-3.5 py-1.5 rounded-full shadow-xs mb-3">
                   <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE]" />
-                  <span className="text-xs font-semibold text-[#021225]">Voice Pulse • Ramesh Order</span>
+                  <span className="text-xs font-semibold text-[#021225]">
+                    Voice Pulse • {t.partyNames.ramesh} Order
+                  </span>
                 </div>
 
                 <h2 className="text-base font-bold tracking-tight text-[#021225] mb-4">
@@ -824,7 +874,7 @@ export default function VyapaarApp() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="text-sm font-bold text-[#021225]">
-                            {order.customer}
+                            {t.partyNames[order.customerKey] || t.partyNames.ramesh}
                           </h4>
                           <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 px-2 py-0.2 rounded-full border border-[#CAFFDE] font-bold">
                             {order.id}
@@ -887,7 +937,7 @@ export default function VyapaarApp() {
                       <div>
                         <div className="flex items-center space-x-2">
                           <h4 className="text-sm font-bold text-[#021225]">
-                            {item.customer}
+                            {t.partyNames[item.customerKey] || t.partyNames.ramesh}
                           </h4>
                           <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 border border-[#CAFFDE] px-2 py-0.2 rounded-full font-bold">
                             {item.id}
@@ -897,7 +947,7 @@ export default function VyapaarApp() {
                           {item.items.map((it, idx) => (
                             <span
                               key={idx}
-                              className="bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2 py-0.5 rounded-lg text-[10px] mr-1 mb-1 font-mono"
+                              className="bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2.5 py-0.5 rounded-lg text-[10px] mr-1 mb-1 font-mono"
                             >
                               {it.qty} {it.name}
                             </span>
@@ -958,8 +1008,8 @@ export default function VyapaarApp() {
           {activeTab === "profile" && (
             <div className="space-y-4">
               <div className="p-5 rounded-3xl border border-[#CAFFDE] bg-white/90 flex items-center gap-4 shadow-xs">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#238689] to-[#25C5E9] text-white font-bold text-xl flex items-center justify-center shadow-md">
-                  RS
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#238689] to-[#25C5E9] text-white font-bold text-xl flex items-center justify-center shadow-md p-2">
+                  <AppLogo className="w-full h-full" />
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-[#021225]">
