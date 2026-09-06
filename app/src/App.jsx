@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api, loadLocalDb, refreshLocalDb, getBaseUrl, setBaseUrl } from "./api";
 import { createRecorder } from "./recorder";
+import appIcon from "./assets/appIcon.jpeg";
 
 const TRANSLATIONS = {
   en: {
@@ -340,7 +341,7 @@ function paiseToRupees(paise) {
   return Math.round((paise || 0) / 100);
 }
 
-function orderFromSnapshot(order, invoice, customer, ledgerBalancePaise) {
+function orderFromSnapshot(order, invoice, customer) {
   return {
     id: order.orderNumber || order.id,
     customerId: order.customerId,
@@ -356,7 +357,6 @@ function orderFromSnapshot(order, invoice, customer, ledgerBalancePaise) {
     delivery: order.deliveryDate || "—",
     totalAmount: paiseToRupees(order.totalPaise),
     collectionAmount: paiseToRupees(order.collectionAmountPaise),
-    pendingDue: paiseToRupees(ledgerBalancePaise),
     status: order.status === "DELIVERED" ? "Delivered" : "Pending",
     timestamp: order.createdAt || "",
     source: "Voice STT",
@@ -373,8 +373,7 @@ function ordersFromDb(db) {
     .map((order) => orderFromSnapshot(
       order,
       invoiceByOrderId[order.id],
-      customerById[order.customerId],
-      db.ledgerByCustomer?.[order.customerId]?.balancePaise ?? 0
+      customerById[order.customerId]
     ));
 }
 
@@ -708,9 +707,7 @@ export default function VyapaarApp() {
         <header className="px-5 py-3.5 border-b border-[#CAFFDE] bg-[#F2FFF6]/80 backdrop-blur-md sticky top-0 z-20 flex justify-between items-center shadow-xs">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE] p-0.5 shadow-xs flex items-center justify-center flex-shrink-0">
-              <div className="w-full h-full bg-white rounded-full flex items-center justify-center">
-                <Sparkles className="w-3.5 h-3.5 text-[#238689]" />
-              </div>
+              <img src={appIcon} alt="" className="w-full h-full rounded-full object-cover" />
             </div>
             <div>
               <h1 className="text-sm font-bold tracking-tight text-[#021225] flex items-center gap-1">
@@ -918,7 +915,7 @@ export default function VyapaarApp() {
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-mono font-bold text-[#238689]">
-                        ₹{item.pendingDue.toLocaleString("en-IN")}
+                        ₹{item.totalAmount.toLocaleString("en-IN")}
                       </p>
                       <span className="text-[9px] text-[#25C5E9] font-semibold">{item.status}</span>
                     </div>
