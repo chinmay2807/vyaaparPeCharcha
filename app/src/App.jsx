@@ -514,7 +514,11 @@ export default function VyapaarApp() {
 
   const summarizeDraft = (draft) => {
     if (!draft) return "";
-    const parts = (draft.items || []).map((item) => `${item.quantity ?? "?"} ${item.unit ?? ""} ${item.spokenName || ""}`.trim());
+    const parts = (draft.items || []).map((item) => {
+      const base = `${item.quantity ?? "?"} ${item.unit ?? ""} ${item.spokenName || ""}`.trim();
+      if (item.quotedUnitPricePaise == null) return base;
+      return `${base} @ ₹${paiseToRupees(item.quotedUnitPricePaise).toLocaleString("en-IN")}`;
+    });
     return parts.join(", ");
   };
 
@@ -631,6 +635,14 @@ export default function VyapaarApp() {
     }
   };
 
+  const speak = (text) => {
+    if ("speechSynthesis" in window && text) {
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang = lang === "ta" ? "ta-IN" : lang === "hi" || lang === "hinglish" ? "hi-IN" : "en-IN";
+      window.speechSynthesis.speak(msg);
+    }
+  };
+
   const playTTSFeedback = async () => {
     setAudioPlayed(true);
     stopAnyPlayback();
@@ -639,34 +651,30 @@ export default function VyapaarApp() {
         const url = await api.artifactUrl(confirmation.artifacts.audio.url);
         const audio = new Audio(url);
         playbackRef.current = audio;
-        audio.play();
+        await audio.play();
         return;
       } catch {
-        setErrorMessage("Could not play confirmation audio");
+        setErrorMessage("Could not play confirmation audio, falling back to text-to-speech");
       }
     }
-    if ("speechSynthesis" in window && confirmation?.confirmationText) {
-      const msg = new SpeechSynthesisUtterance(confirmation.confirmationText);
-      msg.lang = lang === "ta" ? "ta-IN" : lang === "hi" || lang === "hinglish" ? "hi-IN" : "en-IN";
-      window.speechSynthesis.speak(msg);
-    }
+    speak(confirmation?.confirmationText);
   };
 
-  const playAnswerAudio = () => {
+  const playAnswerAudio = async () => {
     setAudioPlayed(true);
     stopAnyPlayback();
     const answer = voiceJob?.voiceAnswer;
     if (answer?.status === "READY" && answer.audioBase64) {
-      const audio = new Audio(`data:${answer.contentType};base64,${answer.audioBase64}`);
-      playbackRef.current = audio;
-      audio.play();
-      return;
+      try {
+        const audio = new Audio(`data:${answer.contentType};base64,${answer.audioBase64}`);
+        playbackRef.current = audio;
+        await audio.play();
+        return;
+      } catch {
+        setErrorMessage("Could not play answer audio, falling back to text-to-speech");
+      }
     }
-    if ("speechSynthesis" in window && voiceJob?.queryResult?.answerText) {
-      const msg = new SpeechSynthesisUtterance(voiceJob.queryResult.answerText);
-      msg.lang = lang === "ta" ? "ta-IN" : lang === "hi" || lang === "hinglish" ? "hi-IN" : "en-IN";
-      window.speechSynthesis.speak(msg);
-    }
+    speak(voiceJob?.queryResult?.answerText);
   };
 
   const totalPendingRupees = paiseToRupees(totalDueFromDb(db));
