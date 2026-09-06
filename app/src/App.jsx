@@ -77,7 +77,26 @@ const TRANSLATIONS = {
     navOrders: "Orders",
     navSpeak: "Voice Pulse",
     navLedger: "Ledger",
-    navProfile: "Ramesh"
+    navProfile: "Ramesh",
+    voicePulseBadge: "Voice Pulse • Ramesh Order",
+    reviewBeforeConfirming: "Review before confirming",
+    confirmOrderBtn: "Confirm order",
+    sendBtn: "Send",
+    typeYourAnswer: "Type your answer",
+    pricePlaceholder: "Price in ₹ (e.g. 50)",
+    quantityPlaceholder: "Quantity (e.g. 3)",
+    transcribing: "Transcribing...",
+    extractingOrder: "Extracting order details...",
+    partiesLabel: "Parties",
+    ordersLabel: "orders",
+    advanceBalance: "advance balance",
+    noLedgerEntries: "No money movements yet",
+    confirmPendingBtn: "Confirm Later",
+    pendingTab: "Pending",
+    pendingDesc: "Orders saved for later confirmation",
+    noPending: "No pending orders",
+    discardBtn: "Discard",
+    openBtn: "Review"
   },
   hinglish: {
     appTitle: "Vyapaar",
@@ -130,7 +149,26 @@ const TRANSLATIONS = {
     navOrders: "Orders",
     navSpeak: "Voice Pulse",
     navLedger: "Khata",
-    navProfile: "Ramesh"
+    navProfile: "Ramesh",
+    voicePulseBadge: "Voice Pulse • Ramesh Order",
+    reviewBeforeConfirming: "Confirm karne se pehle dekhein",
+    confirmOrderBtn: "Order Confirm Karein",
+    sendBtn: "Bhejein",
+    typeYourAnswer: "Apna jawab likhein",
+    pricePlaceholder: "Rate ₹ mein (jaise 50)",
+    quantityPlaceholder: "Quantity (jaise 3)",
+    transcribing: "Transcribe ho raha hai...",
+    extractingOrder: "Order details nikaale ja rahe hain...",
+    partiesLabel: "Vyapari",
+    ordersLabel: "orders",
+    advanceBalance: "advance jama",
+    noLedgerEntries: "Abhi tak koi lena-dena nahi hua",
+    confirmPendingBtn: "Baad Mein Confirm Karein",
+    pendingTab: "Pending",
+    pendingDesc: "Baad mein confirm karne ke liye rakhe gaye orders",
+    noPending: "Koi pending order nahi hai",
+    discardBtn: "Hatayein",
+    openBtn: "Dekhein"
   },
   hi: {
     appTitle: "व्यापार",
@@ -183,7 +221,26 @@ const TRANSLATIONS = {
     navOrders: "ऑर्डर्स",
     navSpeak: "वॉइस पल्स",
     navLedger: "खाता",
-    navProfile: "रमेश"
+    navProfile: "रमेश",
+    voicePulseBadge: "वॉइस पल्स • रमेश ऑर्डर",
+    reviewBeforeConfirming: "पुष्टि करने से पहले जांचें",
+    confirmOrderBtn: "ऑर्डर की पुष्टि करें",
+    sendBtn: "भेजें",
+    typeYourAnswer: "अपना जवाब लिखें",
+    pricePlaceholder: "दर ₹ में (जैसे 50)",
+    quantityPlaceholder: "मात्रा (जैसे 3)",
+    transcribing: "ट्रांसक्राइब हो रहा है...",
+    extractingOrder: "ऑर्डर विवरण निकाला जा रहा है...",
+    partiesLabel: "व्यापारी",
+    ordersLabel: "ऑर्डर",
+    advanceBalance: "एडवांस जमा",
+    noLedgerEntries: "अभी तक कोई लेन-देन नहीं हुआ",
+    confirmPendingBtn: "बाद में पुष्टि करें",
+    pendingTab: "पेंडिंग",
+    pendingDesc: "बाद में पुष्टि के लिए रखे गए ऑर्डर",
+    noPending: "कोई पेंडिंग ऑर्डर नहीं है",
+    discardBtn: "हटाएं",
+    openBtn: "देखें"
   },
   ta: {
     appTitle: "வியாபார்",
@@ -236,11 +293,30 @@ const TRANSLATIONS = {
     navOrders: "ஆர்டர்கள்",
     navSpeak: "வாய்ஸ் பல்ஸ்",
     navLedger: "கணக்கு",
-    navProfile: "ரமேஷ்"
+    navProfile: "ரமேஷ்",
+    voicePulseBadge: "வாய்ஸ் பல்ஸ் • ரமேஷ் ஆர்டர்",
+    reviewBeforeConfirming: "உறுதிப்படுத்தும் முன் சரிபார்க்கவும்",
+    confirmOrderBtn: "ஆர்டரை உறுதிப்படுத்தவும்",
+    sendBtn: "அனுப்பு",
+    typeYourAnswer: "உங்கள் பதிலை உள்ளிடவும்",
+    pricePlaceholder: "விலை ₹ (எ.கா. 50)",
+    quantityPlaceholder: "அளவு (எ.கா. 3)",
+    transcribing: "எழுத்தாக மாற்றப்படுகிறது...",
+    extractingOrder: "ஆர்டர் விவரங்கள் பிரித்தெடுக்கப்படுகிறது...",
+    partiesLabel: "வாடிக்கையாளர்கள்",
+    ordersLabel: "ஆர்டர்கள்",
+    advanceBalance: "முன்பணம்",
+    noLedgerEntries: "இதுவரை பணப் பரிவர்த்தனை இல்லை",
+    confirmPendingBtn: "பின்னர் உறுதிப்படுத்தவும்",
+    pendingTab: "நிலுவை",
+    pendingDesc: "பின்னர் உறுதிப்படுத்த சேமிக்கப்பட்ட ஆர்டர்கள்",
+    noPending: "நிலுவையில் ஆர்டர்கள் இல்லை",
+    discardBtn: "நீக்கு",
+    openBtn: "பார்வையிடு"
   }
 };
 
-function ClarificationTextInput({ onSubmit, placeholder = "Type your answer" }) {
+function ClarificationTextInput({ onSubmit, placeholder = "Type your answer", sendLabel = "Send" }) {
   const [value, setValue] = useState("");
   return (
     <div className="flex w-full gap-2">
@@ -254,7 +330,7 @@ function ClarificationTextInput({ onSubmit, placeholder = "Type your answer" }) 
         onClick={() => value.trim() && onSubmit(value.trim())}
         className="py-2 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
       >
-        Send
+        {sendLabel}
       </button>
     </div>
   );
@@ -264,18 +340,23 @@ function paiseToRupees(paise) {
   return Math.round((paise || 0) / 100);
 }
 
-function orderFromSnapshot(order, invoice, customer) {
+function orderFromSnapshot(order, invoice, customer, ledgerBalancePaise) {
   return {
     id: order.orderNumber || order.id,
+    customerId: order.customerId,
     customer: customer?.name || order.customerId,
     phone: customer?.phone || "",
     items: order.lines.map((line) => ({
       name: line.label,
-      qty: `${line.quantity} ${line.unit}`
+      quantity: line.quantity,
+      unit: line.unit,
+      unitPrice: paiseToRupees(line.unitPricePaise),
+      lineTotal: paiseToRupees(line.lineTotalPaise)
     })),
     delivery: order.deliveryDate || "—",
     totalAmount: paiseToRupees(order.totalPaise),
-    pendingDue: paiseToRupees(order.collectionAmountPaise),
+    collectionAmount: paiseToRupees(order.collectionAmountPaise),
+    pendingDue: paiseToRupees(ledgerBalancePaise),
     status: order.status === "DELIVERED" ? "Delivered" : "Pending",
     timestamp: order.createdAt || "",
     source: "Voice STT",
@@ -289,12 +370,56 @@ function ordersFromDb(db) {
   const invoiceByOrderId = Object.fromEntries(db.invoices.map((inv) => [inv.orderId, inv]));
   return [...db.orders]
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
-    .map((order) => orderFromSnapshot(order, invoiceByOrderId[order.id], customerById[order.customerId]));
+    .map((order) => orderFromSnapshot(
+      order,
+      invoiceByOrderId[order.id],
+      customerById[order.customerId],
+      db.ledgerByCustomer?.[order.customerId]?.balancePaise ?? 0
+    ));
 }
 
 function totalDueFromDb(db) {
   if (!db) return 0;
   return Object.values(db.ledgerByCustomer || {}).reduce((sum, l) => sum + (l.balancePaise || 0), 0);
+}
+
+function partiesFromDb(db, orders) {
+  if (!db) return [];
+  const ordersByCustomer = {};
+  for (const order of orders) {
+    (ordersByCustomer[order.customerId] ||= []).push(order);
+  }
+  return db.customers
+    .map((customer) => {
+      const customerOrders = ordersByCustomer[customer.id] || [];
+      return {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone || "",
+        orderCount: customerOrders.length,
+        totalSpent: customerOrders.reduce((sum, o) => sum + o.totalAmount, 0),
+        balancePaise: db.ledgerByCustomer?.[customer.id]?.balancePaise ?? 0,
+        orders: customerOrders
+      };
+    })
+    .filter((party) => party.orderCount > 0)
+    .sort((a, b) => (a.orders[0]?.timestamp < b.orders[0]?.timestamp ? 1 : -1));
+}
+
+function ledgerPartiesFromDb(db) {
+  if (!db) return [];
+  return db.customers.map((customer) => {
+    const entries = (db.ledgerByCustomer?.[customer.id]?.entries || [])
+      .slice()
+      .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1));
+    return {
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone || "",
+      balancePaise: db.ledgerByCustomer?.[customer.id]?.balancePaise ?? 0,
+      entries
+    };
+  });
 }
 
 export default function VyapaarApp() {
@@ -315,10 +440,26 @@ export default function VyapaarApp() {
   const [errorMessage, setErrorMessage] = useState("");
   const [baseUrlInput, setBaseUrlInput] = useState("");
   const [connectionStatus, setConnectionStatus] = useState(null);
+  const [selectedOrderPartyId, setSelectedOrderPartyId] = useState(null);
+  const [selectedLedgerPartyId, setSelectedLedgerPartyId] = useState(null);
 
   const timerRef = useRef(null);
   const recorderRef = useRef(null);
+  const playbackRef = useRef(null);
   const t = TRANSLATIONS[lang];
+
+  const stopAnyPlayback = () => {
+    if (playbackRef.current) {
+      try {
+        playbackRef.current.pause();
+        playbackRef.current.src = "";
+      } catch {
+        // best-effort cleanup
+      }
+      playbackRef.current = null;
+    }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  };
 
   const syncFromLaptop = async () => {
     try {
@@ -340,6 +481,11 @@ export default function VyapaarApp() {
     getBaseUrl().then(setBaseUrlInput);
     syncFromLaptop();
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "orders") setSelectedOrderPartyId(null);
+    if (activeTab !== "ledger") setSelectedLedgerPartyId(null);
+  }, [activeTab]);
 
   const saveBaseUrl = async () => {
     const trimmed = baseUrlInput.trim();
@@ -398,6 +544,7 @@ export default function VyapaarApp() {
       }
     } else {
       try {
+        stopAnyPlayback();
         const recorder = createRecorder();
         await recorder.start();
         recorderRef.current = recorder;
@@ -450,12 +597,49 @@ export default function VyapaarApp() {
     }
   };
 
+  const savePending = async () => {
+    if (!voiceJob) return;
+    await syncFromLaptop();
+    setProcessingStep(null);
+    setVoiceJob(null);
+    setTranscript("");
+    setDraftSummary("");
+    setActiveTab("pending");
+  };
+
+  const openPendingJob = async (jobId) => {
+    setErrorMessage("");
+    try {
+      const job = await api.getJob(jobId);
+      setVoiceJob(job);
+      setTranscript(job.transcript || "");
+      setDraftSummary(summarizeDraft(job.draft));
+      setConfirmation(null);
+      setActiveTab("record");
+      setProcessingStep(job.clarification ? "clarify" : "review");
+    } catch (error) {
+      setErrorMessage(error.message || "Could not open this pending order");
+    }
+  };
+
+  const discardPending = async (jobId) => {
+    try {
+      await api.cancel(jobId);
+      await syncFromLaptop();
+    } catch (error) {
+      setErrorMessage(error.message || "Could not discard this pending order");
+    }
+  };
+
   const playTTSFeedback = async () => {
     setAudioPlayed(true);
+    stopAnyPlayback();
     if (confirmation?.artifacts?.audio?.url) {
       try {
         const url = await api.artifactUrl(confirmation.artifacts.audio.url);
-        new Audio(url).play();
+        const audio = new Audio(url);
+        playbackRef.current = audio;
+        audio.play();
         return;
       } catch {
         setErrorMessage("Could not play confirmation audio");
@@ -470,9 +654,12 @@ export default function VyapaarApp() {
 
   const playAnswerAudio = () => {
     setAudioPlayed(true);
+    stopAnyPlayback();
     const answer = voiceJob?.voiceAnswer;
     if (answer?.status === "READY" && answer.audioBase64) {
-      new Audio(`data:${answer.contentType};base64,${answer.audioBase64}`).play();
+      const audio = new Audio(`data:${answer.contentType};base64,${answer.audioBase64}`);
+      playbackRef.current = audio;
+      audio.play();
       return;
     }
     if ("speechSynthesis" in window && voiceJob?.queryResult?.answerText) {
@@ -489,10 +676,21 @@ export default function VyapaarApp() {
     return o.status.toLowerCase() === orderFilter.toLowerCase();
   });
 
+  const parties = partiesFromDb(db, orders);
+  const selectedOrderParty = parties.find((p) => p.id === selectedOrderPartyId) || null;
+  const filteredPartyOrders = selectedOrderParty
+    ? selectedOrderParty.orders.filter((o) => orderFilter === "all" || o.status.toLowerCase() === orderFilter.toLowerCase())
+    : [];
+
+  const ledgerParties = ledgerPartiesFromDb(db);
+  const selectedLedgerParty = ledgerParties.find((p) => p.id === selectedLedgerPartyId) || null;
+
+  const pendingJobs = db?.pendingVoiceJobs || [];
+
   return (
-    <div className="flex justify-center min-h-screen bg-[#F2FFF6] text-[#021225] font-sans antialiased selection:bg-[#25C5E9] selection:text-white">
+    <div className="flex justify-center h-screen bg-[#F2FFF6] text-[#021225] font-sans antialiased selection:bg-[#25C5E9] selection:text-white">
       {/* Phone container using Mint Cream (#F2FFF6) with Dark Cyan accents */}
-      <div className="w-full max-w-md bg-gradient-to-b from-[#FFFFFF] via-[#F2FFF6] to-[#E3F9EC] border-x border-[#CAFFDE] flex flex-col min-h-screen shadow-2xl relative pb-24 overflow-hidden">
+      <div className="w-full max-w-md bg-gradient-to-b from-[#FFFFFF] via-[#F2FFF6] to-[#E3F9EC] border-x border-[#CAFFDE] flex flex-col h-screen shadow-2xl relative overflow-hidden">
         
         {/* Ambient atmospheric glows using Sky Aqua & Tea Green */}
         <div className="absolute top-[-5%] left-[-15%] w-[340px] h-[340px] bg-gradient-to-br from-[#25C5E9]/20 to-[#CAFFDE]/30 rounded-full blur-3xl pointer-events-none" />
@@ -563,7 +761,7 @@ export default function VyapaarApp() {
         </header>
 
         {/* Scrollable Main Area */}
-        <main className="flex-1 px-5 py-4 space-y-4 relative z-10 overflow-y-auto">
+        <main className="flex-1 px-5 py-4 pb-24 space-y-4 relative z-10 overflow-y-auto">
           
           {/* ================= HOME VIEW ================= */}
           {activeTab === "home" && (
@@ -659,6 +857,27 @@ export default function VyapaarApp() {
                 </button>
               </div>
 
+              {/* Pending Confirmation */}
+              {pendingJobs.length > 0 && (
+                <button
+                  onClick={() => setActiveTab("pending")}
+                  className="w-full text-left p-4 bg-[#FFF7E0] border border-[#F0C36D] rounded-2xl flex items-center justify-between shadow-xs hover:border-[#238689]/40 transition"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#F0C36D]/25 flex items-center justify-center text-[#8a6516] flex-shrink-0">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[#021225]">{t.pendingTab}</h4>
+                      <p className="text-[10px] text-[#021225]/70 mt-0.5">{t.pendingDesc}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-mono font-bold text-[#8a6516] bg-[#F0C36D]/25 px-2.5 py-0.5 rounded-full border border-[#F0C36D]">
+                    {pendingJobs.length}
+                  </span>
+                </button>
+              )}
+
               {/* Recent Orders */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex justify-between items-center px-1">
@@ -686,7 +905,7 @@ export default function VyapaarApp() {
                         </span>
                       </div>
                       <p className="text-[11px] text-[#021225]/70 mt-1">
-                        {item.items.map((it) => `${it.qty} ${it.name}`).join(", ")}
+                        {item.items.map((it) => `${it.quantity} ${it.unit} ${it.name}`).join(", ")}
                       </p>
                     </div>
                     <div className="text-right">
@@ -708,7 +927,7 @@ export default function VyapaarApp() {
                 
                 <div className="flex items-center space-x-2 bg-white/90 border border-[#CAFFDE] px-3.5 py-1.5 rounded-full shadow-xs mb-3">
                   <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE]" />
-                  <span className="text-xs font-semibold text-[#021225]">Voice Pulse • Ramesh Order</span>
+                  <span className="text-xs font-semibold text-[#021225]">{t.voicePulseBadge}</span>
                 </div>
 
                 <h2 className="text-base font-bold tracking-tight text-[#021225] mb-4">
@@ -803,7 +1022,7 @@ export default function VyapaarApp() {
                         {t.sttLabel}
                       </p>
                       <p className="text-[11px] text-[#021225]/70 italic mt-0.5">
-                        {transcript ? `"${transcript}"` : "Transcribing..."}
+                        {transcript ? `"${transcript}"` : t.transcribing}
                       </p>
                     </div>
                   </div>
@@ -823,7 +1042,7 @@ export default function VyapaarApp() {
                         {t.llmLabel}
                       </p>
                       <p className="text-[11px] text-[#238689] font-mono font-medium mt-0.5">
-                        {draftSummary || "Extracting order details..."}
+                        {draftSummary || t.extractingOrder}
                       </p>
                     </div>
                   </div>
@@ -851,12 +1070,13 @@ export default function VyapaarApp() {
                         ) : (
                           <ClarificationTextInput
                             onSubmit={resolveClarification}
+                            sendLabel={t.sendBtn}
                             placeholder={
                               voiceJob.clarification.code === "MISSING_PRICE"
-                                ? "Price in ₹ (e.g. 50)"
+                                ? t.pricePlaceholder
                                 : voiceJob.clarification.code === "MISSING_QUANTITY"
-                                ? "Quantity (e.g. 3)"
-                                : "Type your answer"
+                                ? t.quantityPlaceholder
+                                : t.typeYourAnswer
                             }
                           />
                         )}
@@ -866,14 +1086,22 @@ export default function VyapaarApp() {
 
                   {voiceJob && !voiceJob.clarification && processingStep === "review" && !confirmation && (
                     <div className="bg-[#CAFFDE]/30 border border-[#CAFFDE] rounded-2xl p-4 my-2 space-y-2.5 shadow-xs">
-                      <p className="text-xs font-bold text-[#021225]">Review before confirming</p>
+                      <p className="text-xs font-bold text-[#021225]">{t.reviewBeforeConfirming}</p>
                       <p className="text-[11px] text-[#021225]/80">{draftSummary}</p>
-                      <button
-                        onClick={confirmOrder}
-                        className="w-full py-2.5 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
-                      >
-                        Confirm order
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={confirmOrder}
+                          className="flex-1 py-2.5 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                        >
+                          {t.confirmOrderBtn}
+                        </button>
+                        <button
+                          onClick={savePending}
+                          className="flex-1 py-2.5 px-3 bg-white hover:bg-[#F2FFF6] text-[#238689] border border-[#238689] rounded-xl text-xs font-bold transition shadow-xs"
+                        >
+                          {t.confirmPendingBtn}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -918,7 +1146,7 @@ export default function VyapaarApp() {
           )}
 
           {/* ================= ORDERS VIEW ================= */}
-          {activeTab === "orders" && (
+          {activeTab === "orders" && !selectedOrderParty && (
             <div className="space-y-3.5">
               <div className="flex justify-between items-center px-1">
                 <div>
@@ -928,8 +1156,51 @@ export default function VyapaarApp() {
                   <p className="text-[10px] text-[#021225]/70 font-medium">{t.allOrdersDesc}</p>
                 </div>
                 <span className="text-xs font-mono text-[#238689] bg-[#CAFFDE]/50 px-2.5 py-0.5 rounded-full border border-[#CAFFDE] font-bold">
-                  {filteredOrders.length} Orders
+                  {parties.length} {t.partiesLabel}
                 </span>
+              </div>
+
+              {/* Party List */}
+              <div className="space-y-2.5">
+                {parties.map((party) => (
+                  <button
+                    key={party.id}
+                    onClick={() => setSelectedOrderPartyId(party.id)}
+                    className="w-full text-left p-4 bg-white/90 border border-[#CAFFDE] rounded-2xl shadow-xs hover:border-[#238689]/40 transition flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#CAFFDE]/50 border border-[#CAFFDE] flex items-center justify-center text-[#238689] font-bold text-sm flex-shrink-0">
+                        {party.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-[#021225]">{party.name}</h4>
+                        <p className="text-[10px] text-[#021225]/70 mt-0.5">
+                          {party.orderCount} {t.ordersLabel} • ₹{party.totalSpent.toLocaleString("en-IN")}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#238689]/60 flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "orders" && selectedOrderParty && (
+            <div className="space-y-3.5">
+              <div className="flex items-center gap-2 px-1">
+                <button
+                  onClick={() => setSelectedOrderPartyId(null)}
+                  className="w-7 h-7 rounded-full bg-white/90 border border-[#CAFFDE] flex items-center justify-center text-[#238689] shadow-xs"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+                <div className="flex-1">
+                  <h2 className="text-base font-bold text-[#021225]">{selectedOrderParty.name}</h2>
+                  <p className="text-[10px] text-[#021225]/70 font-medium">
+                    {selectedOrderParty.orderCount} {t.ordersLabel} • ₹{selectedOrderParty.totalSpent.toLocaleString("en-IN")}
+                  </p>
+                </div>
               </div>
 
               {/* Filter Pills */}
@@ -951,7 +1222,7 @@ export default function VyapaarApp() {
 
               {/* Orders List */}
               <div className="space-y-2.5">
-                {filteredOrders.map((order) => (
+                {filteredPartyOrders.map((order) => (
                   <div
                     key={order.id}
                     className="p-4 bg-white/90 border border-[#CAFFDE] rounded-2xl space-y-2 shadow-xs"
@@ -975,14 +1246,15 @@ export default function VyapaarApp() {
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap gap-1 py-1">
+                    <div className="space-y-1 py-1">
                       {order.items.map((it, idx) => (
-                        <span
+                        <div
                           key={idx}
-                          className="bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-medium"
+                          className="flex items-center justify-between bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2.5 py-1 rounded-lg text-[10px] font-mono font-medium"
                         >
-                          {it.qty} {it.name}
-                        </span>
+                          <span>{it.quantity} {it.unit} {it.name}</span>
+                          <span className="text-[#238689]">₹{it.unitPrice.toLocaleString("en-IN")}/{it.unit} = ₹{it.lineTotal.toLocaleString("en-IN")}</span>
+                        </div>
                       ))}
                     </div>
 
@@ -999,7 +1271,7 @@ export default function VyapaarApp() {
           )}
 
           {/* ================= LEDGER VIEW ================= */}
-          {activeTab === "ledger" && (
+          {activeTab === "ledger" && !selectedLedgerParty && (
             <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
                 <div>
@@ -1009,56 +1281,134 @@ export default function VyapaarApp() {
                   <p className="text-[10px] text-[#021225]/70 font-medium">{t.creditDesc}</p>
                 </div>
                 <span className="text-[11px] text-[#25C5E9] font-mono font-bold">
-                  {orders.length} Records
+                  {ledgerParties.length} {t.partiesLabel}
                 </span>
               </div>
 
               <div className="space-y-2.5">
-                {orders.map((item) => (
+                {ledgerParties.map((party) => (
+                  <button
+                    key={party.id}
+                    onClick={() => setSelectedLedgerPartyId(party.id)}
+                    className="w-full text-left p-4 bg-white/90 border border-[#CAFFDE] rounded-2xl shadow-xs hover:border-[#238689]/40 transition flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#CAFFDE]/50 border border-[#CAFFDE] flex items-center justify-center text-[#238689] font-bold text-sm flex-shrink-0">
+                        {party.name.charAt(0).toUpperCase()}
+                      </div>
+                      <h4 className="text-sm font-bold text-[#021225]">{party.name}</h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="text-xs font-mono font-bold text-[#238689]">
+                          ₹{Math.abs(paiseToRupees(party.balancePaise)).toLocaleString("en-IN")}
+                        </p>
+                        <p className="text-[10px] text-[#021225]/60">
+                          {party.balancePaise < 0 ? t.advanceBalance : t.dueBalance}
+                        </p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-[#238689]/60 flex-shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "ledger" && selectedLedgerParty && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <button
+                  onClick={() => setSelectedLedgerPartyId(null)}
+                  className="w-7 h-7 rounded-full bg-white/90 border border-[#CAFFDE] flex items-center justify-center text-[#238689] shadow-xs"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                </button>
+                <div className="flex-1">
+                  <h2 className="text-base font-bold text-[#021225]">{selectedLedgerParty.name}</h2>
+                  <p className="text-[10px] text-[#021225]/70 font-medium">
+                    {selectedLedgerParty.balancePaise < 0 ? t.advanceBalance : t.dueBalance}: ₹
+                    {Math.abs(paiseToRupees(selectedLedgerParty.balancePaise)).toLocaleString("en-IN")}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {selectedLedgerParty.entries.map((entry) => {
+                  const isCredit = entry.creditPaise > 0;
+                  const amount = paiseToRupees(isCredit ? entry.creditPaise : entry.debitPaise);
+                  return (
+                    <div
+                      key={entry.id}
+                      className="p-3.5 bg-white/90 border border-[#CAFFDE] rounded-2xl shadow-xs flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="text-xs font-bold text-[#021225]">{entry.reference}</p>
+                        <p className="text-[10px] text-[#021225]/60 mt-0.5">
+                          {new Date(entry.occurredAt).toLocaleDateString("en-IN")}
+                        </p>
+                      </div>
+                      <span className={`text-xs font-mono font-bold ${isCredit ? "text-[#238689]" : "text-[#021225]"}`}>
+                        {isCredit ? "+" : "-"}₹{amount.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  );
+                })}
+                {selectedLedgerParty.entries.length === 0 && (
+                  <p className="text-[11px] text-[#021225]/60 text-center py-6">{t.noLedgerEntries}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================= PENDING VIEW ================= */}
+          {activeTab === "pending" && (
+            <div className="space-y-3.5">
+              <div className="px-1">
+                <h2 className="text-base font-bold text-[#021225]">{t.pendingTab}</h2>
+                <p className="text-[10px] text-[#021225]/70 font-medium">{t.pendingDesc}</p>
+              </div>
+
+              <div className="space-y-2.5">
+                {pendingJobs.map((job) => (
                   <div
-                    key={item.id}
-                    className="p-4 bg-white/90 border border-[#CAFFDE] rounded-2xl shadow-xs hover:border-[#238689]/40 transition"
+                    key={job.id}
+                    className="p-4 bg-white/90 border border-[#CAFFDE] rounded-2xl space-y-2 shadow-xs"
                   >
                     <div className="flex items-start justify-between">
                       <div>
-                        <div className="flex items-center space-x-2">
-                          <h4 className="text-sm font-bold text-[#021225]">
-                            {item.customer}
-                          </h4>
-                          <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 border border-[#CAFFDE] px-2 py-0.2 rounded-full font-bold">
-                            {item.id}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-[#021225]/70 mt-1.5 space-x-1 flex flex-wrap">
-                          {item.items.map((it, idx) => (
-                            <span
-                              key={idx}
-                              className="bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2 py-0.5 rounded-lg text-[10px] mr-1 mb-1 font-mono"
-                            >
-                              {it.qty} {it.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-mono font-bold text-[#238689]">
-                          ₹{item.pendingDue.toLocaleString("en-IN")}
+                        <h4 className="text-sm font-bold text-[#021225]">
+                          {job.draft?.customerSpokenName || job.draft?.customerId || "—"}
+                        </h4>
+                        <p className="text-[11px] text-[#021225]/70 mt-1">
+                          {summarizeDraft(job.draft)}
                         </p>
-                        <p className="text-[10px] text-[#021225]/60">{t.dueBalance}</p>
                       </div>
+                      {job.clarification && (
+                        <span className="text-[9px] font-bold text-[#8a6516] bg-[#F0C36D]/25 px-2 py-0.5 rounded-full border border-[#F0C36D] flex-shrink-0">
+                          {job.clarification.code}
+                        </span>
+                      )}
                     </div>
-
-                    <div className="mt-3 pt-2.5 border-t border-[#CAFFDE] flex items-center justify-between text-[10px] text-[#021225]/70">
-                      <span className="flex items-center">
-                        <Clock className="w-3 h-3 mr-1 text-[#25C5E9]" />
-                        Delivery: {item.delivery}
-                      </span>
-                      <span className="text-[#238689] font-bold">
-                        {item.status}
-                      </span>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => openPendingJob(job.id)}
+                        className="flex-1 py-2 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                      >
+                        {t.openBtn}
+                      </button>
+                      <button
+                        onClick={() => discardPending(job.id)}
+                        className="flex-1 py-2 px-3 bg-white hover:bg-[#FFF0F0] text-[#b3413f] border border-[#e8b8b6] rounded-xl text-xs font-bold transition shadow-xs"
+                      >
+                        {t.discardBtn}
+                      </button>
                     </div>
                   </div>
                 ))}
+                {pendingJobs.length === 0 && (
+                  <p className="text-[11px] text-[#021225]/60 text-center py-6">{t.noPending}</p>
+                )}
               </div>
             </div>
           )}

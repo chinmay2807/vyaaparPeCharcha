@@ -791,20 +791,29 @@ def _response_format(name: str, schema: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _azure_compatible_schema(value: Any) -> Any:
-    """Remove unsupported constraints and express nullable types with anyOf."""
+    """Remove unsupported constraints and express nullable types with anyOf.
+
+    A nullable object (``type: ["object", "null"]``) must keep its
+    ``properties``/``required``/``additionalProperties`` on the object branch of
+    the resulting ``anyOf`` — Azure's strict schema mode requires
+    ``additionalProperties: false`` on every object schema, including each
+    branch of an ``anyOf``, so those sibling keys cannot be dropped the way a
+    scalar nullable type (``["string", "null"]``) safely can.
+    """
 
     if isinstance(value, list):
         return [_azure_compatible_schema(item) for item in value]
     if not isinstance(value, Mapping):
         return value
+    types = value.get("type")
+    if isinstance(types, list):
+        rest = _azure_compatible_schema({k: v for k, v in value.items() if k not in {"type", "minimum", "maximum", "pattern", "format"}})
+        return {"anyOf": [{"type": item_type, **rest} if item_type == "object" else {"type": item_type} for item_type in types]}
     converted: dict[str, Any] = {}
     for key, item in value.items():
         if key in {"minimum", "maximum", "pattern", "format"}:
             continue
-        if key == "type" and isinstance(item, list):
-            converted["anyOf"] = [{"type": item_type} for item_type in item]
-        else:
-            converted[key] = _azure_compatible_schema(item)
+        converted[key] = _azure_compatible_schema(item)
     return converted
 
 

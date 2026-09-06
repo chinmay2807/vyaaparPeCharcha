@@ -54,6 +54,23 @@ class ApiTests(unittest.TestCase):
         other_merchant = self.request("/v1/mobile/sync", merchant="mer_other")
         self.assertEqual(other_merchant[2]["error"]["code"], "MERCHANT_NOT_FOUND")
 
+    def test_sync_lists_unconfirmed_voice_jobs_as_pending(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 2 case Sprite @400 bhejna"}, "voice-pending-01",
+        )[2]
+        self.assertEqual(submitted["state"], "READY_FOR_REVIEW")
+        _, _, synced = self.request("/v1/mobile/sync")
+        pending_ids = [job["id"] for job in synced["pendingVoiceJobs"]]
+        self.assertIn(submitted["id"], pending_ids)
+        confirmed = self.request(
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": submitted["revision"], "spokenConfirmation": False}, "confirm-pending-01",
+        )[2]
+        self.assertTrue(confirmed["order"]["id"])
+        _, _, synced_after = self.request("/v1/mobile/sync")
+        self.assertNotIn(submitted["id"], [job["id"] for job in synced_after["pendingVoiceJobs"]])
+
     def test_mutation_idempotency_is_atomic_and_rejects_conflicts(self):
         status, _, body = self.request("/v1/customers", "POST", {"name": "A"})
         self.assertEqual((status, body["error"]["code"]), (400, "IDEMPOTENCY_KEY_REQUIRED"))
@@ -147,6 +164,33 @@ class ApiTests(unittest.TestCase):
                    if entry.get("orderId") == confirmed["order"]["id"]]
         self.assertEqual([entry["type"] for entry in entries], ["SALES_INVOICE", "PAYMENT_COLLECTION"])
         self.assertEqual(confirmed["customerBalancePaise"], 1000000)
+
+    def test_restated_balance_is_not_recorded_as_a_new_collection(self):
+        class RestatedBalanceProvider(OfflineSarvamProvider):
+            def extract_order(self, transcript, merchant_context):
+                draft = super().extract_order(transcript, merchant_context)
+                draft["items"][0]["quoted_unit_price"] = 400
+                draft["mentioned_previous_balance"] = 20000
+                draft["collection_amount"] = 20000
+                draft["collection_evidence"] = "twenty thousand rupees for the previous one to him"
+                return draft
+
+        self.client.app.state.service.provider = RestatedBalanceProvider()
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Puneet ko kal 10 Sprite boxes @400 bhejna; uska bees hazaar pending hai"},
+            "voice-restated-balance",
+        )[2]
+        self.assertIsNone(submitted["draft"]["collectionAmountPaise"])
+        self.assertEqual(submitted["draft"]["mentionedPreviousBalancePaise"], 2000000)
+        confirmed = self.request(
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": submitted["revision"]}, "confirm-restated-balance",
+        )[2]
+        self.assertIsNone(confirmed["order"]["collectionAmountPaise"])
+        entries = [entry for entry in self.store.snapshot()["ledgerEntries"]
+                   if entry.get("orderId") == confirmed["order"]["id"]]
+        self.assertEqual([entry["type"] for entry in entries], ["SALES_INVOICE"])
 
     def test_edit_creates_immutable_revision(self):
         submitted = self.request(

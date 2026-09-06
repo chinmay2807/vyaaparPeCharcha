@@ -49,6 +49,8 @@ export const api = {
   health: () => request("/health"),
   sync: () => request("/v1/mobile/sync"),
 
+  getJob: (jobId) => request(`/v1/mobile/voice-jobs/${jobId}`),
+
   submitVoiceJob: (audioBlob, filename, mimeType, languageHint) => {
     const form = new FormData();
     form.append("audio", audioBlob, filename);
@@ -72,6 +74,13 @@ export const api = {
     request(job.links.confirm.replace(/^https?:\/\/[^/]+/, ""), {
       method: "POST",
       body: { revision, spokenConfirmation: true, language },
+      idempotencyKey: uuid(),
+    }),
+
+  cancel: (jobId) =>
+    request(`/v1/voice-jobs/${jobId}/cancel`, {
+      method: "POST",
+      body: {},
       idempotencyKey: uuid(),
     }),
 

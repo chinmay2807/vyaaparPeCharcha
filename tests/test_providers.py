@@ -231,6 +231,33 @@ class AzureOrderProviderTests(unittest.TestCase):
         self.assertEqual(result["items"][0]["quoted_unit_price"], 2500)
         self.assertEqual(result["collection_amount"], 10000)
 
+    def test_nullable_object_schema_keeps_additional_properties_false(self) -> None:
+        """Azure's strict schema mode rejects an object branch of anyOf that is
+
+        missing additionalProperties: false; a nullable object field (query,
+        status_update) must keep it on the object branch, not just at the
+        sibling level that gets discarded when type becomes anyOf.
+        """
+        config = AzureOpenAIConfig(
+            endpoint="https://azure.test", api_key="azure-secret",
+            deployment="gpt-4.1-mini", max_retries=0,
+        )
+        expected = OfflineSarvamProvider().extract_order("Ramesh ko kal 1 case Sprite", CONTEXT)
+        captured = {}
+
+        def transport(request, timeout):
+            del timeout
+            captured["body"] = json.loads(request.data)
+            return json.dumps({"choices": [{"message": {"content": json.dumps(expected)}}]}).encode()
+
+        AzureOrderProvider(config, transport=transport).extract_order("transcript", CONTEXT)
+        schema = captured["body"]["response_format"]["json_schema"]["schema"]
+        for field_name in ("query", "status_update"):
+            field_schema = schema["properties"][field_name]
+            object_branch = next(branch for branch in field_schema["anyOf"] if branch["type"] == "object")
+            self.assertIs(object_branch["additionalProperties"], False)
+            self.assertIn("properties", object_branch)
+
     def test_foundry_endpoint_uses_openai_v1_route(self) -> None:
         config = AzureOpenAIConfig(
             endpoint="https://resource.services.ai.azure.com", api_key="azure-secret",

@@ -366,6 +366,10 @@ class Service:
                     balance += item["debitPaise"] - item["creditPaise"]
                     entries.append({**copy.deepcopy(item), "balancePaise": balance})
                 ledger_by_customer[customer["id"]] = {"balancePaise": balance, "entries": entries}
+            pending_jobs = [
+                self._present_job(s, job) for job in s["voiceJobs"]
+                if job["merchantId"] == merchant and job["state"] in {"READY_FOR_REVIEW", "NEEDS_CLARIFICATION"}
+            ]
             return {
                 "syncedAt": self._iso(),
                 "merchant": copy.deepcopy(self._merchant(s, merchant)),
@@ -373,6 +377,7 @@ class Service:
                 "orders": orders,
                 "invoices": invoices,
                 "ledgerByCustomer": ledger_by_customer,
+                "pendingVoiceJobs": pending_jobs,
             }
         return self.store.read(read)
 
@@ -384,6 +389,9 @@ class Service:
         No quantity spoken for an item -> 1. No unit spoken for an item -> piece.
         There is no product catalog: whatever product name is spoken becomes the
         order line directly, with no lookup or matching against anything.
+        A restated previous balance that exactly matches the collection amount is
+        the merchant repeating an existing due figure, not a new payment received;
+        drop the collection so it is never double counted as fresh money in.
         """
         delivery = draft.get("delivery_date") or {}
         spoken_date = delivery.get("evidence") or delivery.get("value")
@@ -403,6 +411,9 @@ class Service:
                 item["quantity"] = 1
             if not item.get("unit") or self._unit(item.get("unit")) is None:
                 item["unit"] = "piece"
+        balance, collection = draft.get("mentioned_previous_balance"), draft.get("collection_amount")
+        if balance is not None and collection is not None and abs(balance - collection) < 0.01:
+            draft["collection_amount"] = None
 
     def _create_customer_record(self, s: dict[str, Any], merchant: str, spoken_name: str) -> dict[str, Any]:
         """A spoken name with no matching customer becomes a new customer at confirm time.
