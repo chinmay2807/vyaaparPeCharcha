@@ -24,7 +24,7 @@ import {
   ChevronRight
 } from "lucide-react";
 
-// Integrated Logo Component with fallback
+// Integrated Logo Component with graceful fallback
 function AppLogo({ className = "w-8 h-8" }) {
   const [imgError, setImgError] = useState(false);
 
@@ -39,7 +39,6 @@ function AppLogo({ className = "w-8 h-8" }) {
     );
   }
 
-  // Fallback icon if logo.png is not found
   return (
     <div className={`${className} rounded-xl bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE] p-0.5 flex items-center justify-center shadow-xs flex-shrink-0`}>
       <div className="w-full h-full bg-[#F2FFF6] rounded-lg flex items-center justify-center relative overflow-hidden">
@@ -76,9 +75,9 @@ const TRANSLATIONS = {
     analyzing: "Analyzing Speech",
     verified: "Added to Ramesh Ledger",
     sttLabel: "Saaras Speech-to-Text Transcription",
-    sttSample: "Ramesh ko kal ke liye 6 peti Sprite, 4 Coke, aur 20 Limca bhejna. Uska last 12,500 pending hai.",
+    sttSample: "Send 6 crates of Sprite, 4 Coke, and 20 Limca to Ramesh Store for tomorrow. His previous balance of 12,500 is still pending.",
     llmLabel: "Indic LLM Entity Extraction",
-    llmSample: "Party: Ramesh Store • 6 peti Sprite, 4 Coke, 20 Limca • Pending: ₹12,500",
+    llmSample: "Party: Ramesh Store • 6 crates Sprite, 4 Coke, 20 Limca • Pending: ₹12,500",
     clarificationTitle: "Clarification for Ramesh Store:",
     clarificationPrompt: "Did Ramesh request 20 bottles or 20 crates of Limca?",
     bottles: "20 Bottles",
@@ -96,17 +95,44 @@ const TRANSLATIONS = {
     indicModel: "Sarvam Indic AI Model",
     paymentQr: "Ramesh Store UPI",
     switchMerchant: "Switch Active Account",
-    ttsConfirmation: "Ramesh store ka order likh liya gaya hai: Chhe peti Sprite, chaar Coke, aur bees Limca. Baarah hazaar paanch sau rupaye pending baki hain.",
+    ttsConfirmation: "Order recorded for Ramesh Store: 6 crates of Sprite, 4 Coke, and 20 Limca. Previous balance of 12,500 rupees remains pending.",
     navHome: "Home",
     navOrders: "Orders",
     navSpeak: "Voice Pulse",
     navLedger: "Ledger",
     navProfile: "Ramesh",
+    deliveryLabel: "Delivery",
+    sourceLabel: "Source",
+    totalLabel: "Total",
+    filterAll: "All",
+    deliveryTimes: {
+      tomorrow: "Tomorrow",
+      today: "Today",
+      pending: "Pending",
+      completed: "Delivered"
+    },
+    statuses: {
+      confirmed: "Confirmed",
+      dispatched: "Dispatched",
+      pending: "Pending",
+      delivered: "Delivered"
+    },
     partyNames: {
       ramesh: "Ramesh Store",
       iqbal: "Iqbal General Store",
       gupta: "Gupta Wholesaler",
       kavita: "Kavita Supermart"
+    },
+    items: {
+      sprite_6_peti: "6 crates Sprite",
+      coke_4: "4 Coke",
+      limca_20_bottles: "20 bottles Limca",
+      limca_20_crates: "20 crates Limca",
+      atta_10kg: "5 bags Atta 10kg",
+      oil_1l: "12 pouches Mustard Oil 1L",
+      rice_25kg: "2 bags Basmati Rice 25kg",
+      surf_excel: "10 packs Surf Excel 1kg",
+      vim_bar: "2 cartons Vim Bar"
     }
   },
   hinglish: {
@@ -161,11 +187,38 @@ const TRANSLATIONS = {
     navSpeak: "Voice Pulse",
     navLedger: "Khata",
     navProfile: "Ramesh",
+    deliveryLabel: "Delivery",
+    sourceLabel: "Source",
+    totalLabel: "Total",
+    filterAll: "Sabhi",
+    deliveryTimes: {
+      tomorrow: "Kal (Tomorrow)",
+      today: "Aaj (Today)",
+      pending: "Pending Hai",
+      completed: "Bhej Diya (Delivered)"
+    },
+    statuses: {
+      confirmed: "Confirmed",
+      dispatched: "Dispatched",
+      pending: "Pending",
+      delivered: "Delivered"
+    },
     partyNames: {
       ramesh: "Ramesh Store",
       iqbal: "Iqbal General Store",
       gupta: "Gupta Wholesaler",
       kavita: "Kavita Supermart"
+    },
+    items: {
+      sprite_6_peti: "6 peti Sprite",
+      coke_4: "4 Coke",
+      limca_20_bottles: "20 bottles Limca",
+      limca_20_crates: "20 crates Limca",
+      atta_10kg: "5 bori Atta 10kg",
+      oil_1l: "12 pouch Sarson Tel 1L",
+      rice_25kg: "2 bori Basmati Chawal 25kg",
+      surf_excel: "10 packet Surf Excel 1kg",
+      vim_bar: "2 carton Vim Bar"
     }
   },
   hi: {
@@ -220,11 +273,38 @@ const TRANSLATIONS = {
     navSpeak: "वॉइस पल्स",
     navLedger: "खाता",
     navProfile: "रमेश",
+    deliveryLabel: "डिलीवरी",
+    sourceLabel: "स्रोत",
+    totalLabel: "कुल",
+    filterAll: "सभी",
+    deliveryTimes: {
+      tomorrow: "कल (आने वाला कल)",
+      today: "आज",
+      pending: "लंबित (पेंडिंग)",
+      completed: "पहुंचा दिया गया"
+    },
+    statuses: {
+      confirmed: "पुष्टि की गई",
+      dispatched: "भेज दिया गया",
+      pending: "लंबित",
+      delivered: "वितरित"
+    },
     partyNames: {
       ramesh: "रमेश स्टोर",
       iqbal: "इक़बाल जनरल स्टोर",
       gupta: "गुप्ता होलसेलर",
       kavita: "कविता सुपरमार्ट"
+    },
+    items: {
+      sprite_6_peti: "६ पेटी स्प्राइट",
+      coke_4: "४ कोक",
+      limca_20_bottles: "२० बोतलें लिम्का",
+      limca_20_crates: "२० क्रेट लिम्का",
+      atta_10kg: "५ बोरी आटा १० कि.ग्रा.",
+      oil_1l: "१२ पैकेट सरसों तेल १ ली.",
+      rice_25kg: "२ बोरी बासमती चावल २५ कि.ग्रा.",
+      surf_excel: "१० पैकेट सर्फ एक्सेल १ कि.ग्रा.",
+      vim_bar: "२ डिब्बे विम बार"
     }
   },
   ta: {
@@ -279,11 +359,38 @@ const TRANSLATIONS = {
     navSpeak: "வாய்ஸ் பல்ஸ்",
     navLedger: "கணக்கு",
     navProfile: "ரமேஷ்",
+    deliveryLabel: "டெலிவரி",
+    sourceLabel: "ஆதாரம்",
+    totalLabel: "மொத்தம்",
+    filterAll: "அனைத்தும்",
+    deliveryTimes: {
+      tomorrow: "நாளை (Tomorrow)",
+      today: "இன்று (Today)",
+      pending: "நிலுவையில் உள்ளது",
+      completed: "வழங்கப்பட்டது (Delivered)"
+    },
+    statuses: {
+      confirmed: "உறுதி செய்யப்பட்டது",
+      dispatched: "அனுப்பப்பட்டது",
+      pending: "நிலுவையில் உள்ளது",
+      delivered: "வழங்கப்பட்டது"
+    },
     partyNames: {
       ramesh: "ரமேஷ் ஸ்டோர்",
       iqbal: "இக்பால் ஜெனரல் ஸ்டோர்",
       gupta: "குப்தா ஹோல்சேலர்",
       kavita: "கவிதா சூப்பர் மார்ட்"
+    },
+    items: {
+      sprite_6_peti: "6 பெட்டி ஸ்ப்ரைட்",
+      coke_4: "4 கோக்",
+      limca_20_bottles: "20 பாட்டில்கள் லிம்கா",
+      limca_20_crates: "20 பெட்டிகள் லிம்கா",
+      atta_10kg: "5 மூட்டை கோதுமை மாவு 10கி",
+      oil_1l: "12 பாக்கெட் கடுகு எண்ணெய் 1லி",
+      rice_25kg: "2 மூட்டை பாசுமதி அரிசி 25கி",
+      surf_excel: "10 பாக்கெட் சர்ப் எக்செல் 1கி",
+      vim_bar: "2 பெட்டி விம் பார்"
     }
   }
 };
@@ -293,15 +400,11 @@ const INITIAL_ORDERS = [
     id: "ORD-041",
     customerKey: "ramesh",
     phone: "+91 98765 43210",
-    items: [
-      { name: "Sprite", qty: "6 peti" },
-      { name: "Coke", qty: "4 Coke" },
-      { name: "Limca", qty: "20 bottles" }
-    ],
-    delivery: "Kal (Tomorrow)",
+    itemKeys: ["sprite_6_peti", "coke_4", "limca_20_bottles"],
+    deliveryKey: "tomorrow",
     totalAmount: 18400,
     pendingDue: 12500,
-    status: "Confirmed",
+    statusKey: "confirmed",
     timestamp: "Just now",
     source: "Voice STT"
   },
@@ -309,14 +412,11 @@ const INITIAL_ORDERS = [
     id: "ORD-040",
     customerKey: "iqbal",
     phone: "+91 98450 12345",
-    items: [
-      { name: "Atta 10kg", qty: "5 bags" },
-      { name: "Mustard Oil 1L", qty: "12 pouches" }
-    ],
-    delivery: "Today",
+    itemKeys: ["atta_10kg", "oil_1l"],
+    deliveryKey: "today",
     totalAmount: 4900,
     pendingDue: 3240,
-    status: "Dispatched",
+    statusKey: "dispatched",
     timestamp: "2 hrs ago",
     source: "Voice Note"
   },
@@ -324,11 +424,11 @@ const INITIAL_ORDERS = [
     id: "ORD-039",
     customerKey: "gupta",
     phone: "+91 97123 45678",
-    items: [{ name: "Basmati Rice 25kg", qty: "2 bags" }],
-    delivery: "Pending",
+    itemKeys: ["rice_25kg"],
+    deliveryKey: "pending",
     totalAmount: 11200,
     pendingDue: 8900,
-    status: "Pending",
+    statusKey: "pending",
     timestamp: "Yesterday",
     source: "Supplier Bill Scan"
   },
@@ -336,22 +436,19 @@ const INITIAL_ORDERS = [
     id: "ORD-038",
     customerKey: "kavita",
     phone: "+91 99001 88223",
-    items: [
-      { name: "Surf Excel 1kg", qty: "10 packs" },
-      { name: "Vim Bar", qty: "2 cartons" }
-    ],
-    delivery: "Completed",
+    itemKeys: ["surf_excel", "vim_bar"],
+    deliveryKey: "completed",
     totalAmount: 3450,
     pendingDue: 1875,
-    status: "Delivered",
+    statusKey: "delivered",
     timestamp: "2 days ago",
     source: "Voice Note"
   }
 ];
 
 export default function VyapaarApp() {
-  const [lang, setLang] = useState("en");
-  const [activeTab, setActiveTab] = useState("home");
+  const [lang, setLang] = useState("ta"); // Default or active language
+  const [activeTab, setActiveTab] = useState("orders"); // Focus tab
   const [isRecording, setIsRecording] = useState(false);
   const [recordTimer, setRecordTimer] = useState(0);
   const [audioLevel, setAudioLevel] = useState(1);
@@ -412,15 +509,15 @@ export default function VyapaarApp() {
         id: `ORD-0${orders.length + 42}`,
         customerKey: "ramesh",
         phone: "+91 98765 43210",
-        items: [
-          { name: "Sprite", qty: "6 peti" },
-          { name: "Coke", qty: "4 Coke" },
-          { name: "Limca", qty: choice === "crates" ? "20 crates" : "20 bottles" }
+        itemKeys: [
+          "sprite_6_peti",
+          "coke_4",
+          choice === "crates" ? "limca_20_crates" : "limca_20_bottles"
         ],
-        delivery: "Kal (Tomorrow)",
+        deliveryKey: "tomorrow",
         totalAmount: 18400,
         pendingDue: 12500,
-        status: "Confirmed",
+        statusKey: "confirmed",
         timestamp: "Just now",
         source: "Voice STT"
       };
@@ -445,7 +542,7 @@ export default function VyapaarApp() {
 
   const filteredOrders = orders.filter((o) => {
     if (orderFilter === "all") return true;
-    return o.status.toLowerCase() === orderFilter.toLowerCase();
+    return o.statusKey === orderFilter;
   });
 
   return (
@@ -453,7 +550,7 @@ export default function VyapaarApp() {
       {/* Phone container using Mint Cream (#F2FFF6) with Dark Cyan accents */}
       <div className="w-full max-w-md bg-gradient-to-b from-[#FFFFFF] via-[#F2FFF6] to-[#E3F9EC] border-x border-[#CAFFDE] flex flex-col min-h-screen shadow-2xl relative pb-24 overflow-hidden">
         
-        {/* Ambient atmospheric glows using Sky Aqua & Tea Green */}
+        {/* Ambient atmospheric glows */}
         <div className="absolute top-[-5%] left-[-15%] w-[340px] h-[340px] bg-gradient-to-br from-[#25C5E9]/20 to-[#CAFFDE]/30 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-[20%] right-[-20%] w-[300px] h-[300px] bg-gradient-to-tr from-[#238689]/15 to-[#25C5E9]/20 rounded-full blur-3xl pointer-events-none" />
 
@@ -523,7 +620,6 @@ export default function VyapaarApp() {
           {/* ================= HOME VIEW ================= */}
           {activeTab === "home" && (
             <div className="space-y-4">
-              
               {/* Profile Card */}
               <div className="rounded-[28px] p-6 bg-white/80 backdrop-blur-md border border-[#CAFFDE] shadow-sm flex flex-col space-y-4">
                 <div className="flex justify-between items-start">
@@ -610,7 +706,7 @@ export default function VyapaarApp() {
                 </button>
               </div>
 
-              {/* Recent Orders */}
+              {/* Recent Orders Overview */}
               <div className="space-y-2.5 pt-1">
                 <div className="flex justify-between items-center px-1">
                   <h3 className="text-xs uppercase tracking-wider text-[#238689] font-bold">
@@ -632,21 +728,23 @@ export default function VyapaarApp() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-[#021225]">
-                          {t.partyNames[item.customerKey] || t.partyNames.ramesh}
+                          {t.partyNames[item.customerKey]}
                         </span>
                         <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 border border-[#CAFFDE] px-1.5 py-0.2 rounded-full font-semibold">
                           {item.id}
                         </span>
                       </div>
                       <p className="text-[11px] text-[#021225]/70 mt-1">
-                        {item.items.map((it) => `${it.qty} ${it.name}`).join(", ")}
+                        {item.itemKeys.map((k) => t.items[k] || k).join(", ")}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs font-mono font-bold text-[#238689]">
                         ₹{item.pendingDue.toLocaleString("en-IN")}
                       </p>
-                      <span className="text-[9px] text-[#25C5E9] font-semibold">{item.status}</span>
+                      <span className="text-[9px] text-[#25C5E9] font-semibold">
+                        {t.statuses[item.statusKey]}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -658,11 +756,10 @@ export default function VyapaarApp() {
           {activeTab === "record" && (
             <div className="space-y-4">
               <div className="rounded-[32px] p-6 border border-[#CAFFDE] bg-white/70 backdrop-blur-xl shadow-sm flex flex-col items-center justify-center text-center overflow-hidden">
-                
                 <div className="flex items-center space-x-2 bg-white/90 border border-[#CAFFDE] px-3.5 py-1.5 rounded-full shadow-xs mb-3">
                   <div className="w-3 h-3 rounded-full bg-gradient-to-tr from-[#238689] via-[#25C5E9] to-[#CAFFDE]" />
                   <span className="text-xs font-semibold text-[#021225]">
-                    Voice Pulse • {t.partyNames.ramesh} Order
+                    Voice Pulse • {t.partyNames.ramesh}
                   </span>
                 </div>
 
@@ -670,15 +767,12 @@ export default function VyapaarApp() {
                   {t.voiceFirstTitle}
                 </h2>
 
-                {/* 3D Glass Morphic Orb Container */}
                 <div
                   className="relative flex items-center justify-center transition-transform duration-200 my-4"
                   style={{ transform: `scale(${audioLevel})` }}
                 >
-                  {/* Outer atmospheric aura */}
                   <div className="absolute w-64 h-64 rounded-full bg-gradient-to-tr from-[#25C5E9]/30 via-[#CAFFDE]/40 to-[#238689]/25 blur-3xl pointer-events-none" />
 
-                  {/* 3D Glass Sphere with Refraction Layers */}
                   <div
                     onClick={toggleRecording}
                     className="relative w-52 h-52 rounded-full overflow-hidden border border-white/60 cursor-pointer active:scale-95 transition-all duration-300"
@@ -699,26 +793,16 @@ export default function VyapaarApp() {
                       backdropFilter: "blur(12px)"
                     }}
                   >
-                    {/* Glass Surface Sheen & Dispersion */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#25C5E9]/20 via-transparent to-[#CAFFDE]/30 mix-blend-overlay opacity-90 animate-pulse" />
-
-                    {/* Sub-surface Optical Refraction Ring */}
                     <div className="absolute inset-x-3 top-6 h-36 rounded-[50%] border border-white/40 opacity-70 transform -rotate-12 pointer-events-none" />
-
-                    {/* Primary Glass Specular Crescent (Upper Refraction Glare) */}
                     <div
                       className="absolute top-2 left-5 right-5 h-24 rounded-[50%] bg-gradient-to-b from-white/95 via-white/40 to-transparent pointer-events-none transform -rotate-6 blur-[0.5px]"
                       style={{ clipPath: "ellipse(48% 35% at 50% 30%)" }}
                     />
-
-                    {/* Secondary Lower Cyan Rim Reflection */}
                     <div className="absolute bottom-2 left-6 right-6 h-9 rounded-full bg-gradient-to-t from-white/90 via-[#25C5E9]/40 to-transparent blur-[0.8px] pointer-events-none" />
-
-                    {/* Punctual Specular Catchlight */}
                     <div className="absolute top-7 left-10 w-3 h-1.5 rounded-full bg-white blur-[0.3px] transform -rotate-45 pointer-events-none" />
                   </div>
 
-                  {/* Radiating audio pulse ripple */}
                   {isRecording && (
                     <div className="absolute w-[220px] h-[220px] rounded-full border-2 border-[#25C5E9]/50 pointer-events-none opacity-50 animate-ping" />
                   )}
@@ -737,7 +821,7 @@ export default function VyapaarApp() {
                 <div className="bg-white/90 border border-[#CAFFDE] rounded-3xl p-5 space-y-3.5 shadow-sm">
                   <div className="flex items-center justify-between text-xs font-bold text-[#021225] border-b border-[#CAFFDE] pb-2">
                     <span className="flex items-center gap-1.5 text-[#238689]">
-                      <Sparkles className="w-3.5 h-3.5" />
+                      <AppLogo className="w-4 h-4 inline-block" />
                       {t.pipelineTitle}
                     </span>
                     <span className="text-[10px] font-mono uppercase text-[#238689] bg-[#CAFFDE]/50 px-2 py-0.5 rounded-full border border-[#CAFFDE] font-bold">
@@ -848,17 +932,23 @@ export default function VyapaarApp() {
 
               {/* Filter Pills */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px]">
-                {["all", "confirmed", "dispatched", "pending", "delivered"].map((status) => (
+                {[
+                  { key: "all", label: t.filterAll },
+                  { key: "confirmed", label: t.statuses.confirmed },
+                  { key: "dispatched", label: t.statuses.dispatched },
+                  { key: "pending", label: t.statuses.pending },
+                  { key: "delivered", label: t.statuses.delivered }
+                ].map(({ key, label }) => (
                   <button
-                    key={status}
-                    onClick={() => setOrderFilter(status)}
-                    className={`capitalize px-3 py-1 rounded-full border transition font-medium ${
-                      orderFilter === status
+                    key={key}
+                    onClick={() => setOrderFilter(key)}
+                    className={`capitalize px-3 py-1 rounded-full border transition font-medium whitespace-nowrap ${
+                      orderFilter === key
                         ? "bg-[#238689] text-white border-[#238689] shadow-xs"
                         : "bg-white/85 text-[#021225] border-[#CAFFDE] hover:border-[#238689]"
                     }`}
                   >
-                    {status}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -874,7 +964,7 @@ export default function VyapaarApp() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="text-sm font-bold text-[#021225]">
-                            {t.partyNames[order.customerKey] || t.partyNames.ramesh}
+                            {t.partyNames[order.customerKey]}
                           </h4>
                           <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 px-2 py-0.2 rounded-full border border-[#CAFFDE] font-bold">
                             {order.id}
@@ -885,25 +975,26 @@ export default function VyapaarApp() {
                         </p>
                       </div>
                       <span className="text-[10px] font-bold text-[#238689] bg-[#CAFFDE]/50 px-2.5 py-0.5 rounded-full border border-[#CAFFDE]">
-                        {order.status}
+                        {t.statuses[order.statusKey]}
                       </span>
                     </div>
 
+                    {/* Localized Item Pills */}
                     <div className="flex flex-wrap gap-1 py-1">
-                      {order.items.map((it, idx) => (
+                      {order.itemKeys.map((itemKey, idx) => (
                         <span
                           key={idx}
                           className="bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-medium"
                         >
-                          {it.qty} {it.name}
+                          {t.items[itemKey] || itemKey}
                         </span>
                       ))}
                     </div>
 
                     <div className="pt-2 border-t border-[#CAFFDE] flex justify-between items-center text-[10px] text-[#021225]/70">
-                      <span>Source: {order.source}</span>
+                      <span>{t.sourceLabel}: {order.source}</span>
                       <span className="font-mono text-[#021225] font-bold">
-                        Total: ₹{order.totalAmount.toLocaleString("en-IN")}
+                        {t.totalLabel}: ₹{order.totalAmount.toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>
@@ -937,19 +1028,19 @@ export default function VyapaarApp() {
                       <div>
                         <div className="flex items-center space-x-2">
                           <h4 className="text-sm font-bold text-[#021225]">
-                            {t.partyNames[item.customerKey] || t.partyNames.ramesh}
+                            {t.partyNames[item.customerKey]}
                           </h4>
                           <span className="text-[9px] font-mono text-[#238689] bg-[#CAFFDE]/50 border border-[#CAFFDE] px-2 py-0.2 rounded-full font-bold">
                             {item.id}
                           </span>
                         </div>
                         <div className="text-[11px] text-[#021225]/70 mt-1.5 space-x-1 flex flex-wrap">
-                          {item.items.map((it, idx) => (
+                          {item.itemKeys.map((itemKey, idx) => (
                             <span
                               key={idx}
                               className="bg-[#F2FFF6] text-[#021225] border border-[#CAFFDE] px-2.5 py-0.5 rounded-lg text-[10px] mr-1 mb-1 font-mono"
                             >
-                              {it.qty} {it.name}
+                              {t.items[itemKey] || itemKey}
                             </span>
                           ))}
                         </div>
@@ -965,10 +1056,10 @@ export default function VyapaarApp() {
                     <div className="mt-3 pt-2.5 border-t border-[#CAFFDE] flex items-center justify-between text-[10px] text-[#021225]/70">
                       <span className="flex items-center">
                         <Clock className="w-3 h-3 mr-1 text-[#25C5E9]" />
-                        Delivery: {item.delivery}
+                        {t.deliveryLabel}: {t.deliveryTimes[item.deliveryKey]}
                       </span>
                       <span className="text-[#238689] font-bold">
-                        {item.status}
+                        {t.statuses[item.statusKey]}
                       </span>
                     </div>
                   </div>
