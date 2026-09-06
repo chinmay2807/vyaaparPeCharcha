@@ -78,6 +78,19 @@ class DraftDate:
 
 
 @dataclass(frozen=True, slots=True)
+class DraftQuery:
+    customer_spoken_name: str | None
+    status_filter: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class DraftStatusUpdate:
+    customer_spoken_name: str | None
+    order_number_spoken: str | None
+    new_status: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class DraftCommand:
     customer: DraftCustomer
     delivery_date: DraftDate
@@ -89,6 +102,8 @@ class DraftCommand:
     currency: str = "INR"
     missing_fields: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    query: DraftQuery | None = None
+    status_update: DraftStatusUpdate | None = None
 
 
 def _mapping(value: object) -> Mapping[str, Any] | None:
@@ -135,8 +150,9 @@ def validate_draft_command(payload: object) -> ValidationResult[DraftCommand]:
     def issue(path: str, code: str, message: str) -> None:
         errors.append(ValidationIssue(path, code, message))
 
-    if root.get("intent") != "create_sales_order":
-        issue("intent", "UNSUPPORTED_INTENT", "only create_sales_order is supported")
+    intent = root.get("intent")
+    if intent not in {"create_sales_order", "query_orders", "update_order_status"}:
+        issue("intent", "UNSUPPORTED_INTENT", "unsupported intent")
     if root.get("currency") != "INR":
         issue("currency", "UNSUPPORTED_CURRENCY", "MVP supports INR only")
 
@@ -149,7 +165,7 @@ def validate_draft_command(payload: object) -> ValidationResult[DraftCommand]:
         candidate = _text(customer_raw.get("candidate_id"), nullable=True)
         confidence = _confidence(customer_raw.get("confidence"))
         evidence = customer_raw.get("evidence")
-        if spoken is None:
+        if spoken is None and intent == "create_sales_order":
             issue("customer.spoken_name", "REQUIRED", "spoken_name is required")
         if customer_raw.get("candidate_id") is not None and candidate is None:
             issue("customer.candidate_id", "INVALID_TYPE", "candidate_id must be a non-empty string or null")
@@ -157,8 +173,8 @@ def validate_draft_command(payload: object) -> ValidationResult[DraftCommand]:
             issue("customer.confidence", "INVALID_CONFIDENCE", "confidence must be between 0 and 1")
         if not isinstance(evidence, str):
             issue("customer.evidence", "INVALID_TYPE", "evidence must be a string")
-        if spoken is not None and confidence is not None and isinstance(evidence, str):
-            customer = DraftCustomer(spoken, candidate, confidence, evidence)
+        if (spoken is not None or intent != "create_sales_order") and confidence is not None and isinstance(evidence, str):
+            customer = DraftCustomer(spoken or "", candidate, confidence, evidence)
 
     delivery_raw = _mapping(root.get("delivery_date"))
     delivery: DraftDate | None = None
@@ -186,7 +202,9 @@ def validate_draft_command(payload: object) -> ValidationResult[DraftCommand]:
 
     items: list[DraftItem] = []
     raw_items = root.get("items")
-    if not isinstance(raw_items, list) or not raw_items:
+    if not isinstance(raw_items, list):
+        issue("items", "INVALID_TYPE", "items must be a list")
+    elif not raw_items and intent == "create_sales_order":
         issue("items", "REQUIRED", "at least one item is required")
     else:
         for index, raw_item in enumerate(raw_items):
@@ -238,11 +256,47 @@ def validate_draft_command(payload: object) -> ValidationResult[DraftCommand]:
     if warnings is None:
         issue("warnings", "INVALID_TYPE", "warnings must be a string list")
 
+    query: DraftQuery | None = None
+    query_raw = root.get("query")
+    if query_raw is not None:
+        query_map = _mapping(query_raw)
+        if query_map is None:
+            issue("query", "INVALID_TYPE", "query must be an object or null")
+        else:
+            status_filter = query_map.get("status_filter")
+            if status_filter is not None and status_filter not in {"CONFIRMED", "DELIVERED"}:
+                issue("query.status_filter", "INVALID_TYPE", "status_filter must be CONFIRMED, DELIVERED, or null")
+            else:
+                query = DraftQuery(_text(query_map.get("customer_spoken_name"), nullable=True), status_filter)
+
+    status_update: DraftStatusUpdate | None = None
+    status_update_raw = root.get("status_update")
+    if status_update_raw is not None:
+        status_update_map = _mapping(status_update_raw)
+        if status_update_map is None:
+            issue("status_update", "INVALID_TYPE", "status_update must be an object or null")
+        else:
+            new_status = status_update_map.get("new_status")
+            if new_status is not None and new_status != "DELIVERED":
+                issue("status_update.new_status", "INVALID_TYPE", "new_status must be DELIVERED or null")
+            else:
+                status_update = DraftStatusUpdate(
+                    _text(status_update_map.get("customer_spoken_name"), nullable=True),
+                    _text(status_update_map.get("order_number_spoken"), nullable=True),
+                    new_status,
+                )
+
+    if intent == "query_orders" and query is None:
+        issue("query", "REQUIRED", "query is required for query_orders")
+    if intent == "update_order_status" and status_update is None:
+        issue("status_update", "REQUIRED", "status_update is required for update_order_status")
+
     if errors or customer is None or delivery is None or missing is None or warnings is None:
         return ValidationResult(errors=tuple(errors))
     return ValidationResult(
         DraftCommand(customer, delivery, tuple(items), balance, collection, collection_evidence,
-                     missing_fields=missing, warnings=warnings)
+                     intent=intent, missing_fields=missing, warnings=warnings,
+                     query=query, status_update=status_update)
     )
 
 
@@ -378,6 +432,7 @@ _RELATIVE_DAYS: Mapping[str, int] = {
     "today": 0, "aaj": 0, "aaj ke liye": 0, "आज": 0, "आज के लिए": 0,
     "tomorrow": 1, "for tomorrow": 1, "kal": 1, "kal ke liye": 1, "कल": 1, "कल के लिए": 1,
     "day after tomorrow": 2, "parso": 2, "parso ke liye": 2, "parson": 2, "परसों": 2, "परसों के लिए": 2,
+    "yesterday": -1, "kal tha": -1, "बीता कल": -1, "कल था": -1,
 }
 
 
@@ -411,7 +466,8 @@ def resolve_relative_date(
 
     today = merchant_today(time_zone, now)
     normalized = " ".join(unicodedata.normalize("NFKC", expression).casefold().split())
-    if normalized in _RELATIVE_DAYS:
+    is_relative_phrase = normalized in _RELATIVE_DAYS
+    if is_relative_phrase:
         result = today + timedelta(days=_RELATIVE_DAYS[normalized])
     else:
         try:
@@ -421,7 +477,8 @@ def resolve_relative_date(
         except ValueError as exc:
             raise DomainError("UNSUPPORTED_DATE", f"unsupported delivery date: {expression}") from exc
     offset = (result - today).days
-    if offset < 0 or offset > supported_horizon_days:
+    minimum_offset = -1 if is_relative_phrase else 0
+    if offset < minimum_offset or offset > supported_horizon_days:
         raise DomainError("DATE_OUT_OF_HORIZON", f"delivery date must be within {supported_horizon_days} days", offset_days=offset)
     return result
 

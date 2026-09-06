@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 
 from ..dependencies import get_idempotency_key, get_merchant_id, get_service
-from ..schemas import AliasCreate, CustomerCreate, SkuCreate
+from ..schemas import CustomerCreate
 from ..service import Service
 
 router = APIRouter(prefix="/v1", tags=["catalog"])
@@ -20,19 +20,3 @@ def customers(service: ServiceDep, merchant: MerchantDep, query: str = Query("")
 @router.post("/customers", status_code=201)
 def create_customer(body: CustomerCreate, service: ServiceDep, merchant: MerchantDep, key: KeyDep):
     return service.create_customer(merchant, key, body.payload())
-
-
-@router.get("/skus")
-def skus(service: ServiceDep, merchant: MerchantDep, query: str = Query("")):
-    return service.skus(merchant, query)
-
-
-@router.post("/skus", status_code=201)
-def create_sku(body: SkuCreate, service: ServiceDep, merchant: MerchantDep, key: KeyDep):
-    return service.create_sku(merchant, key, body.payload())
-
-
-@router.post("/skus/{sku_id}/aliases")
-def add_alias(sku_id: str, body: AliasCreate, service: ServiceDep,
-              merchant: MerchantDep, key: KeyDep):
-    return service.add_alias(merchant, sku_id, key, body.payload())

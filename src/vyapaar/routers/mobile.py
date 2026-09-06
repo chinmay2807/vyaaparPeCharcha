@@ -55,6 +55,11 @@ def mobile_config(request: Request):
     }
 
 
+@router.get("/sync")
+def sync(service: ServiceDep, merchant: MerchantDep):
+    return service.sync(merchant)
+
+
 @router.post("/voice-jobs", status_code=202, name="mobile_submit_audio")
 async def submit_audio(
     request: Request,

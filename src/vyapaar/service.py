@@ -11,7 +11,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any, Callable
 
-from .domain import validate_draft_command
+from .domain import DomainError, resolve_relative_date, validate_draft_command
 from .providers import ProviderError, create_provider
 from .store import JsonStore
 
@@ -51,34 +51,6 @@ class Service:
             s["customers"].append(customer); self._audit(s, merchant, "CUSTOMER_CREATED", identifier)
             return self._public_customer(customer)
         return self._idempotent(merchant, "POST /v1/customers", key, body, action)
-
-    def skus(self, merchant: str, query: str = "") -> dict[str, Any]:
-        self._ensure_merchant(merchant)
-        return {"skus": copy.deepcopy(self._search("skus", merchant, query, "label"))}
-
-    def create_sku(self, merchant: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
-        require(str(body.get("label", "")).strip(), 400, "INVALID_SKU", "label is required")
-        require(str(body.get("baseUnit", "")).strip(), 400, "INVALID_SKU", "baseUnit is required")
-        require(isinstance(body.get("sellingPricePaise"), int) and body["sellingPricePaise"] >= 0,
-                400, "INVALID_SKU", "sellingPricePaise must be a non-negative integer")
-        def action(s: dict[str, Any]) -> dict[str, Any]:
-            self._merchant(s, merchant)
-            identifier = f"sku_{s['sequences']['sku']}"; s["sequences"]["sku"] += 1
-            sku = {"id": identifier, "merchantId": merchant, "label": str(body["label"]).strip(),
-                   "aliases": self._strings(body.get("aliases", [])), "baseUnit": body["baseUnit"],
-                   "unitsPerCase": self._integer(body.get("unitsPerCase"), 1),
-                   "sellingPricePaise": body["sellingPricePaise"],
-                   "stockBaseUnits": self._integer(body.get("stockBaseUnits"), 0)}
-            s["skus"].append(sku); self._audit(s, merchant, "SKU_CREATED", identifier); return copy.deepcopy(sku)
-        return self._idempotent(merchant, "POST /v1/skus", key, body, action)
-
-    def add_alias(self, merchant: str, sku_id: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
-        require(str(body.get("alias", "")).strip(), 400, "INVALID_ALIAS", "alias is required")
-        def action(s: dict[str, Any]) -> dict[str, Any]:
-            sku = self._owned(s["skus"], sku_id, merchant, "SKU_NOT_FOUND")
-            sku["aliases"] = self._strings(sku["aliases"] + [body["alias"]]); self._audit(s, merchant, "SKU_ALIAS_ADDED", sku_id)
-            return copy.deepcopy(sku)
-        return self._idempotent(merchant, f"POST /v1/skus/{sku_id}/aliases", key, body, action)
 
     def create_upload(self, merchant: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
         content_type, size = body.get("contentType"), body.get("sizeBytes")
@@ -130,18 +102,44 @@ class Service:
                 audio_fixture, filename=str(body.get("filename", "voice.webm")),
                 content_type=body.get("contentType", "audio/webm"), language_hint=body.get("languageHint"))
             transcript = str(transcription["text"])
+            timezone_name = self.store.read(lambda s: self._merchant(s, merchant)["timezone"])
             context = self.store.read(lambda s: {
                 "customers": copy.deepcopy([x for x in s["customers"] if x["merchantId"] == merchant]),
-                "skus": copy.deepcopy([x for x in s["skus"] if x["merchantId"] == merchant]),
                 "reference_date": self.now().date().isoformat(),
             })
             provider_draft = self.provider.extract_order(transcript, context)
             validated = validate_draft_command(provider_draft)
             require(validated.ok, 502, "INVALID_PROVIDER_OUTPUT", "Provider returned an invalid draft",
                     [{"path": issue.path, "code": issue.code} for issue in validated.errors])
+            intent = provider_draft.get("intent")
+            if intent == "create_sales_order":
+                self._apply_extraction_defaults(provider_draft, timezone_name)
             proposal = self._provider_proposal(provider_draft)
         except ProviderError as error:
             raise ApiError(503 if error.retryable else 502, "PROVIDER_ERROR", "Voice provider could not process the request") from error
+        language = transcription.get("language") or body.get("languageHint", "hi-IN")
+        if intent == "query_orders":
+            action = self._action_query(merchant, body, transcript, language, proposal.get("query") or {})
+        elif intent == "update_order_status":
+            action = self._action_status_update(merchant, body, transcript, language, proposal.get("statusUpdate") or {})
+        else:
+            action = self._action_create_order(merchant, body, transcript, language, proposal)
+        result = self._idempotent(merchant, "POST /v1/voice-jobs", key, body, action)
+        if result.get("state") == "ANSWERED":
+            self._speak_answer(result, language)
+        return result
+
+    def _speak_answer(self, job: dict[str, Any], language: str) -> None:
+        try:
+            speech = self.provider.synthesize_confirmation(job["queryResult"]["answerText"], language=language)
+            job["voiceAnswer"] = {"status": "READY", "contentType": speech["content_type"],
+                                   "audioBase64": base64.b64encode(speech["audio"]).decode("ascii"),
+                                   "language": speech.get("language", language)}
+        except ProviderError:
+            job["voiceAnswer"] = {"status": "FAILED", "code": "TTS_UNAVAILABLE"}
+
+    def _action_create_order(self, merchant: str, body: dict[str, Any], transcript: str, language: str,
+                              proposal: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
         def action(s: dict[str, Any]) -> dict[str, Any]:
             identifier = f"vj_{s['sequences']['voiceJob']}"; s["sequences"]["voiceJob"] += 1
             draft = {"id": f"draft_{uuid.uuid4()}", "voiceJobId": identifier, "merchantId": merchant,
@@ -150,17 +148,87 @@ class Service:
             draft["validationErrors"] = self._validate(s, merchant, draft)
             clarification = self._next_clarification(s, merchant, draft)
             job = {"id": identifier, "merchantId": merchant, "audioKey": body.get("audioKey"),
-                   "transcript": transcript, "language": transcription.get("language") or body.get("languageHint", "hi-IN"),
+                   "transcript": transcript, "language": language,
                    "state": "NEEDS_CLARIFICATION" if clarification else "READY_FOR_REVIEW",
                    "revision": 1, "committedOrderId": None, "createdAt": self._iso(), "updatedAt": self._iso()}
             s["voiceJobs"].append(job); s["drafts"].append(draft)
             if clarification: s["clarifications"].append({"id": f"clar_{uuid.uuid4()}", "voiceJobId": identifier, "revision": 1, "status": "OPEN", **clarification})
             self._audit(s, merchant, "VOICE_JOB_CREATED", identifier, {"state": job["state"]})
             return self._present_job(s, job)
-        return self._idempotent(merchant, "POST /v1/voice-jobs", key, body, action)
+        return action
+
+    def _action_query(self, merchant: str, body: dict[str, Any], transcript: str, language: str,
+                       query: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+        def action(s: dict[str, Any]) -> dict[str, Any]:
+            identifier = f"vj_{s['sequences']['voiceJob']}"; s["sequences"]["voiceJob"] += 1
+            spoken_name = str(query.get("customerSpokenName") or "").strip()
+            customer = self._match_customer(s, merchant, spoken_name) if spoken_name else None
+            require(not spoken_name or customer, 422, "CUSTOMER_NOT_FOUND", f"No customer matches '{spoken_name}'")
+            orders = [o for o in s["orders"] if o["merchantId"] == merchant
+                      and (customer is None or o["customerId"] == customer["id"])
+                      and (not query.get("statusFilter") or o["status"] == query["statusFilter"])]
+            status_label = {"CONFIRMED": "pending", "DELIVERED": "delivered"}.get(query.get("statusFilter"), "")
+            who = f" for {customer['name']}" if customer else ""
+            answer_text = f"{len(orders)} {status_label} order{'s' if len(orders) != 1 else ''}{who}.".replace("  ", " ")
+            job = {"id": identifier, "merchantId": merchant, "audioKey": body.get("audioKey"),
+                   "transcript": transcript, "language": language, "state": "ANSWERED",
+                   "revision": 1, "committedOrderId": None, "createdAt": self._iso(), "updatedAt": self._iso(),
+                   "queryResult": {"answerText": answer_text, "orderCount": len(orders),
+                                   "orderNumbers": [o["orderNumber"] for o in orders]}}
+            s["voiceJobs"].append(job)
+            self._audit(s, merchant, "VOICE_QUERY_ANSWERED", identifier, {"orderCount": len(orders)})
+            return self._present_answered_job(job)
+        return action
+
+    def _action_status_update(self, merchant: str, body: dict[str, Any], transcript: str, language: str,
+                               status_update: dict[str, Any]) -> Callable[[dict[str, Any]], dict[str, Any]]:
+        def action(s: dict[str, Any]) -> dict[str, Any]:
+            identifier = f"vj_{s['sequences']['voiceJob']}"; s["sequences"]["voiceJob"] += 1
+            order_number = str(status_update.get("orderNumberSpoken") or "").strip()
+            spoken_name = str(status_update.get("customerSpokenName") or "").strip()
+            order = None
+            if order_number:
+                order = next((o for o in s["orders"] if o["merchantId"] == merchant
+                              and o["orderNumber"].casefold() == order_number.casefold()), None)
+                require(order, 422, "ORDER_NOT_FOUND", f"No order matches '{order_number}'")
+            else:
+                customer = self._match_customer(s, merchant, spoken_name)
+                require(customer, 422, "CUSTOMER_NOT_FOUND", f"No customer matches '{spoken_name}'")
+                candidates = sorted((o for o in s["orders"] if o["merchantId"] == merchant
+                                     and o["customerId"] == customer["id"] and o["status"] != "DELIVERED"),
+                                    key=lambda o: o["createdAt"])
+                require(candidates, 422, "ORDER_NOT_FOUND", f"No undelivered order for '{spoken_name}'")
+                order = candidates[0]
+            order["status"] = "DELIVERED"; order["deliveredAt"] = self._iso()
+            self._audit(s, merchant, "ORDER_STATUS_UPDATED", order["id"], {"status": "DELIVERED"})
+            job = {"id": identifier, "merchantId": merchant, "audioKey": body.get("audioKey"),
+                   "transcript": transcript, "language": language, "state": "ANSWERED",
+                   "revision": 1, "committedOrderId": order["id"], "createdAt": self._iso(), "updatedAt": self._iso(),
+                   "queryResult": {"answerText": f"Order {order['orderNumber']} marked delivered.",
+                                   "orderCount": 1, "orderNumbers": [order["orderNumber"]]}}
+            s["voiceJobs"].append(job)
+            return self._present_answered_job(job)
+        return action
+
+    def _match_customer(self, s: dict[str, Any], merchant: str, spoken_name: str) -> dict[str, Any] | None:
+        needle = spoken_name.strip().casefold()
+        if not needle: return None
+        for customer in s["customers"]:
+            if customer["merchantId"] != merchant: continue
+            names = [customer["name"], *customer.get("aliases", [])]
+            if any(needle == str(name).strip().casefold() for name in names): return customer
+        return None
+
+    def _present_answered_job(self, job: dict[str, Any]) -> dict[str, Any]:
+        return {key: copy.deepcopy(job[key]) for key in
+                ("id", "state", "revision", "transcript", "language", "committedOrderId",
+                 "createdAt", "updatedAt", "queryResult")} | {"draft": None, "clarification": None}
 
     def voice_job(self, merchant: str, identifier: str) -> dict[str, Any]:
-        return self.store.read(lambda s: self._present_job(s, self._owned(s["voiceJobs"], identifier, merchant, "VOICE_JOB_NOT_FOUND")))
+        def read(s: dict[str, Any]) -> dict[str, Any]:
+            job = self._owned(s["voiceJobs"], identifier, merchant, "VOICE_JOB_NOT_FOUND")
+            return self._present_answered_job(job) if job["state"] == "ANSWERED" else self._present_job(s, job)
+        return self.store.read(read)
 
     def edit_draft(self, merchant: str, identifier: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
         def action(s: dict[str, Any]) -> dict[str, Any]:
@@ -199,28 +267,21 @@ class Service:
             require(job["state"] == "READY_FOR_REVIEW", 409, "INVALID_STATE", "Job is not ready for confirmation"); self._revision(job, body)
             draft = self._draft(s, job); errors = self._validate(s, merchant, draft)
             require(not errors, 422, errors[0]["code"] if errors else "INVALID_DRAFT", "Draft did not pass deterministic validation", errors)
-            customer = self._owned(s["customers"], draft["customerId"], merchant, "CUSTOMER_NOT_FOUND"); lines = []
-            for item in draft["items"]:
-                sku = self._owned(s["skus"], item["skuId"], merchant, "SKU_NOT_FOUND"); base = self._base_units(item, sku)
-                require(sku["stockBaseUnits"] >= base, 409, "INSUFFICIENT_STOCK", f"Insufficient stock for {sku['label']}", {"skuId": sku["id"]})
-                catalog_price = sku["sellingPricePaise"] if item["unit"] == "case" else round(sku["sellingPricePaise"] / max(sku.get("unitsPerCase", 1), 1))
-                unit_price = item.get("quotedUnitPricePaise")
-                if unit_price is None: unit_price = catalog_price
-                lines.append({"id": f"oli_{uuid.uuid4()}", "skuId": sku["id"], "label": sku["label"],
-                              "quantity": item["quantity"], "unit": item["unit"], "baseUnits": base,
-                              "unitPricePaise": unit_price, "catalogUnitPricePaise": catalog_price,
-                              "priceSource": "SPOKEN_QUOTE" if item.get("quotedUnitPricePaise") is not None else "CATALOG",
-                              "lineTotalPaise": unit_price * item["quantity"]})
+            if draft.get("customerId"):
+                customer = self._owned(s["customers"], draft["customerId"], merchant, "CUSTOMER_NOT_FOUND")
+            else:
+                customer = self._create_customer_record(s, merchant, str(draft.get("customerSpokenName", "")).strip())
+                draft["customerId"] = customer["id"]
+            lines = [{"id": f"oli_{uuid.uuid4()}", "label": item["spokenName"],
+                      "quantity": item["quantity"], "unit": item["unit"],
+                      "unitPricePaise": item["quotedUnitPricePaise"],
+                      "lineTotalPaise": item["quotedUnitPricePaise"] * item["quantity"]} for item in draft["items"]]
             total = sum(x["lineTotalPaise"] for x in lines); order_id = f"ord_{uuid.uuid4()}"
             order = {"id": order_id, "merchantId": merchant, "customerId": customer["id"], "voiceJobId": identifier,
                      "orderNumber": f"VL-{s['sequences']['order']}", "deliveryDate": draft["deliveryDate"], "currency": "INR",
                      "lines": lines, "totalPaise": total,
                      "collectionAmountPaise": draft.get("collectionAmountPaise"),
                      "status": "CONFIRMED", "createdAt": self._iso()}; s["sequences"]["order"] += 1
-            for line in lines:
-                sku = self._owned(s["skus"], line["skuId"], merchant, "SKU_NOT_FOUND"); sku["stockBaseUnits"] -= line["baseUnits"]
-                s["inventoryMovements"].append({"id": f"mov_{uuid.uuid4()}", "merchantId": merchant, "skuId": sku["id"],
-                                                 "sourceType": "SALES_ORDER", "sourceId": order_id, "deltaBaseUnits": -line["baseUnits"], "occurredAt": self._iso()})
             invoice = {"id": f"inv_{uuid.uuid4()}", "merchantId": merchant, "customerId": customer["id"], "orderId": order_id,
                        "invoiceNumber": f"INV-{s['sequences']['invoice']}", "totalPaise": total, "currency": "INR", "status": "ISSUED", "issuedAt": self._iso()}; s["sequences"]["invoice"] += 1
             s["orders"].append(order); s["invoices"].append(invoice)
@@ -291,83 +352,110 @@ class Service:
             return {"customer": self._public_customer(customer), "currency": "INR", "balancePaise": balance, "entries": entries}
         return self.store.read(read)
 
-    def create_reconciliation(self, merchant: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
-        require(str(body.get("documentName", "")).strip(), 400, "INVALID_DOCUMENT", "documentName is required")
-        self._ensure_merchant(merchant)
-        provider_input = {"supplier_name": body.get("supplierName"), "invoice_number": body.get("invoiceNumber"),
-                          "invoice_date": body.get("invoiceDate"), "currency": "INR",
-                          "items": [{"spoken_name": x.get("spokenName", x.get("label", "")), "quantity": x.get("quantity", 0),
-                                     "unit": x.get("unit", "piece"), "unit_cost": x.get("unitCostPaise", 0) / 100}
-                                    for x in body.get("items", [])]}
-        try:
-            if body.get("documentBase64"):
-                try: document_bytes = base64.b64decode(body["documentBase64"], validate=True)
-                except (ValueError, TypeError): raise ApiError(400, "INVALID_DOCUMENT", "documentBase64 is invalid") from None
-                require(len(document_bytes) <= 15 * 1024 * 1024, 413, "PAYLOAD_TOO_LARGE", "Document is too large")
-            else:
-                document_bytes = json.dumps(provider_input).encode() if body.get("items") else b"offline demo document"
-            extracted = self.provider.extract_document(document_bytes, filename=str(body["documentName"]), content_type=body.get("contentType"))
-        except ProviderError as error:
-            raise ApiError(503 if error.retryable else 502, "PROVIDER_ERROR", "Document provider could not process the request") from error
-        def action(s: dict[str, Any]) -> dict[str, Any]:
-            items = []
-            for raw in extracted.get("items", []):
-                spoken = str(raw.get("spoken_name", "")); sku = self._resolve_sku(spoken, s["skus"], merchant)
-                items.append({"spokenName": spoken, "skuId": (sku or {}).get("id"), "quantity": raw.get("quantity"),
-                              "unit": self._unit(raw.get("unit")) or ((sku or {}).get("baseUnit")), "unitCostPaise": round(raw.get("unit_cost", 0) * 100)})
-            identifier = f"rec_{s['sequences']['reconciliation']}"; s["sequences"]["reconciliation"] += 1
-            doc = {"id": identifier, "merchantId": merchant, "documentName": str(body["documentName"]), "state": "REVIEW_REQUIRED", "revision": 1,
-                   "supplierName": extracted.get("supplier_name") or "Demo Supplier", "supplierInvoiceNumber": extracted.get("invoice_number") or f"SUP-{identifier}",
-                   "items": items, "createdAt": self._iso(), "appliedAt": None}; s["reconciliationDocuments"].append(doc); self._audit(s, merchant, "RECONCILIATION_CREATED", identifier)
-            return self._public_reconciliation(doc)
-        return self._idempotent(merchant, "POST /v1/reconciliation-documents", key, body, action)
+    def sync(self, merchant: str) -> dict[str, Any]:
+        def read(s: dict[str, Any]) -> dict[str, Any]:
+            self._merchant(s, merchant)
+            customers = [self._public_customer(x) for x in s["customers"] if x["merchantId"] == merchant]
+            orders = [copy.deepcopy(x) for x in s["orders"] if x["merchantId"] == merchant]
+            invoices = [copy.deepcopy(x) for x in s["invoices"] if x["merchantId"] == merchant]
+            ledger_by_customer: dict[str, Any] = {}
+            for customer in customers:
+                balance = 0
+                entries = []
+                for item in sorted((x for x in s["ledgerEntries"] if x["merchantId"] == merchant and x["customerId"] == customer["id"]), key=lambda x: x["occurredAt"]):
+                    balance += item["debitPaise"] - item["creditPaise"]
+                    entries.append({**copy.deepcopy(item), "balancePaise": balance})
+                ledger_by_customer[customer["id"]] = {"balancePaise": balance, "entries": entries}
+            return {
+                "syncedAt": self._iso(),
+                "merchant": copy.deepcopy(self._merchant(s, merchant)),
+                "customers": customers,
+                "orders": orders,
+                "invoices": invoices,
+                "ledgerByCustomer": ledger_by_customer,
+            }
+        return self.store.read(read)
 
-    def reconciliation(self, merchant: str, identifier: str) -> dict[str, Any]:
-        return self.store.read(lambda s: self._public_reconciliation(self._owned(s["reconciliationDocuments"], identifier, merchant, "RECONCILIATION_NOT_FOUND")))
+    def _apply_extraction_defaults(self, draft: dict[str, Any], timezone_name: str) -> None:
+        """Fill fields the merchant left unsaid instead of always asking.
 
-    def apply_reconciliation(self, merchant: str, identifier: str, key: str, body: dict[str, Any]) -> dict[str, Any]:
-        def action(s: dict[str, Any]) -> dict[str, Any]:
-            doc = self._owned(s["reconciliationDocuments"], identifier, merchant, "RECONCILIATION_NOT_FOUND")
-            if doc["state"] == "APPLIED": return {**self._public_reconciliation(doc), "idempotentReplay": True}
-            require(doc["state"] == "REVIEW_REQUIRED", 409, "INVALID_STATE", "Document is not reviewable"); self._revision(doc, body)
-            require(doc["items"], 422, "EMPTY_DOCUMENT", "No document items to apply"); planned = []
-            for item in doc["items"]:
-                require(isinstance(item["quantity"], (int, float)) and item["quantity"] > 0, 422, "INVALID_QUANTITY", "Quantities must be positive")
-                sku = self._owned(s["skus"], item.get("skuId"), merchant, "UNRESOLVED_SKU"); planned.append((sku, self._base_units(item, sku)))
-            for sku, quantity in planned:
-                sku["stockBaseUnits"] += quantity; s["inventoryMovements"].append({"id": f"mov_{uuid.uuid4()}", "merchantId": merchant, "skuId": sku["id"], "sourceType": "RECONCILIATION", "sourceId": identifier, "deltaBaseUnits": quantity, "occurredAt": self._iso()})
-            doc.update({"state": "APPLIED", "appliedAt": self._iso()}); self._audit(s, merchant, "RECONCILIATION_APPLIED", identifier)
-            return {**self._public_reconciliation(doc), "idempotentReplay": False}
-        return self._idempotent(merchant, f"POST /v1/reconciliation-documents/{identifier}/apply", key, body, action)
+        No delivery date spoken -> today. today/tomorrow/yesterday spoken ->
+        resolved against the merchant's calendar day instead of asked again.
+        No quantity spoken for an item -> 1. No unit spoken for an item -> piece.
+        There is no product catalog: whatever product name is spoken becomes the
+        order line directly, with no lookup or matching against anything.
+        """
+        delivery = draft.get("delivery_date") or {}
+        spoken_date = delivery.get("evidence") or delivery.get("value")
+        resolved = None
+        if spoken_date:
+            try:
+                resolved = resolve_relative_date(str(spoken_date), timezone_name, now=self.now())
+            except DomainError:
+                resolved = None
+        if resolved:
+            delivery["value"] = resolved.isoformat()
+        elif not delivery.get("value"):
+            delivery["value"] = self.now().date().isoformat()
+        draft["delivery_date"] = delivery
+        for item in draft.get("items", []):
+            if item.get("quantity") is None:
+                item["quantity"] = 1
+            if not item.get("unit") or self._unit(item.get("unit")) is None:
+                item["unit"] = "piece"
 
-    # IDs and stock remain canonical; explicit spoken prices and collection instructions survive review.
+    def _create_customer_record(self, s: dict[str, Any], merchant: str, spoken_name: str) -> dict[str, Any]:
+        """A spoken name with no matching customer becomes a new customer at confirm time.
+
+        There is no fixed merchant customer list; every distinct party a merchant
+        speaks an order for becomes part of that merchant's own customer base over
+        time, exactly as an SKU alias is learned the first time it is used.
+        """
+        require(spoken_name, 400, "INVALID_CLARIFICATION", "A customer name is required to create an order")
+        identifier = f"cus_{s['sequences']['customer']}"; s["sequences"]["customer"] += 1
+        customer = {"id": identifier, "merchantId": merchant, "name": spoken_name, "aliases": [spoken_name],
+                    "phone": None, "address": None, "creditLimitPaise": 0}
+        s["customers"].append(customer); self._audit(s, merchant, "CUSTOMER_CREATED", identifier, {"source": "voice_order"})
+        return customer
+
+    # There is no product catalog: a spoken product name is the order line's identity.
+    # Explicit spoken prices and collection instructions survive review unchanged.
     @staticmethod
     def _provider_proposal(draft: dict[str, Any]) -> dict[str, Any]:
         customer, delivery = draft["customer"], draft["delivery_date"]
+        query = draft.get("query") or {}
+        status_update = draft.get("status_update") or {}
         return {"customerId": customer.get("candidate_id"), "customerSpokenName": customer.get("spoken_name"),
                 "deliveryDate": delivery.get("value"),
-                "items": [{"spokenName": x.get("spoken_name"), "skuId": x.get("candidate_sku_id"),
+                "items": [{"spokenName": x.get("spoken_name"),
                            "quantity": x.get("quantity"), "unit": Service._unit(x.get("unit")), "confidence": x.get("confidence"),
                            "quotedUnitPricePaise": round(x["quoted_unit_price"] * 100) if x.get("quoted_unit_price") is not None else None,
                            "evidence": x.get("evidence")} for x in draft.get("items", [])],
                 "mentionedPreviousBalancePaise": round(draft["mentioned_previous_balance"] * 100) if draft.get("mentioned_previous_balance") is not None else None,
                 "collectionAmountPaise": round(draft["collection_amount"] * 100) if draft.get("collection_amount") is not None else None,
                 "evidence": {"customer": customer.get("evidence"), "collection": draft.get("collection_evidence", "")},
-                "warnings": list(draft.get("warnings", []))}
+                "warnings": list(draft.get("warnings", [])),
+                "query": {"customerSpokenName": query.get("customer_spoken_name"), "statusFilter": query.get("status_filter")},
+                "statusUpdate": {"customerSpokenName": status_update.get("customer_spoken_name"),
+                                  "orderNumberSpoken": status_update.get("order_number_spoken"),
+                                  "newStatus": status_update.get("new_status")}}
 
     def _validate(self, s: dict[str, Any], merchant: str, draft: dict[str, Any]) -> list[dict[str, Any]]:
         errors = []
-        if not any(x["id"] == draft.get("customerId") and x["merchantId"] == merchant for x in s["customers"]): errors.append({"code": "AMBIGUOUS_CUSTOMER", "fieldPath": "customerId"})
+        has_customer_id = any(x["id"] == draft.get("customerId") and x["merchantId"] == merchant for x in s["customers"])
+        if not draft.get("customerId") and not str(draft.get("customerSpokenName", "")).strip():
+            errors.append({"code": "MISSING_CUSTOMER", "fieldPath": "customerId"})
+        elif draft.get("customerId") and not has_customer_id:
+            errors.append({"code": "AMBIGUOUS_CUSTOMER", "fieldPath": "customerId"})
         if not draft.get("deliveryDate"): errors.append({"code": "MISSING_DELIVERY_DATE", "fieldPath": "deliveryDate"})
         if not draft.get("items"): errors.append({"code": "MISSING_ITEMS", "fieldPath": "items"})
         for index, item in enumerate(draft.get("items", [])):
-            sku = next((x for x in s["skus"] if x["id"] == item.get("skuId") and x["merchantId"] == merchant), None)
-            if not sku: errors.append({"code": "UNRESOLVED_SKU", "fieldPath": f"items.{index}.skuId"})
+            if not str(item.get("spokenName", "")).strip(): errors.append({"code": "MISSING_PRODUCT_NAME", "fieldPath": f"items.{index}.spokenName"})
             if not isinstance(item.get("quantity"), (int, float)) or item["quantity"] <= 0: errors.append({"code": "MISSING_QUANTITY", "fieldPath": f"items.{index}.quantity"})
             if not item.get("unit"): errors.append({"code": "MISSING_UNIT", "fieldPath": f"items.{index}.unit"})
             quoted = item.get("quotedUnitPricePaise")
-            if quoted is not None and (isinstance(quoted, bool) or not isinstance(quoted, int) or quoted < 0): errors.append({"code": "INVALID_QUOTED_PRICE", "fieldPath": f"items.{index}.quotedUnitPricePaise"})
-            if sku and item.get("quantity") and item.get("unit") and self._base_units(item, sku) > sku["stockBaseUnits"]: errors.append({"code": "INSUFFICIENT_STOCK", "fieldPath": f"items.{index}.quantity", "available": sku["stockBaseUnits"]})
+            if quoted is None: errors.append({"code": "MISSING_PRICE", "fieldPath": f"items.{index}.quotedUnitPricePaise"})
+            elif isinstance(quoted, bool) or not isinstance(quoted, int) or quoted < 0: errors.append({"code": "INVALID_QUOTED_PRICE", "fieldPath": f"items.{index}.quotedUnitPricePaise"})
         collection = draft.get("collectionAmountPaise")
         if collection is not None and (isinstance(collection, bool) or not isinstance(collection, int) or collection < 0): errors.append({"code": "INVALID_COLLECTION_AMOUNT", "fieldPath": "collectionAmountPaise"})
         if draft.get("customerId") and draft.get("mentionedPreviousBalancePaise") is not None:
@@ -379,27 +467,36 @@ class Service:
         errors = self._validate(s, merchant, draft)
         if not errors: return None
         error = errors[0]; path = error["fieldPath"]
+        if error["code"] == "MISSING_CUSTOMER": return {"fieldPath": path, "code": error["code"], "question": "Yeh order kis customer ke liye hai?", "options": []}
         if error["code"] == "AMBIGUOUS_CUSTOMER": return {"fieldPath": path, "code": error["code"], "question": f"‘{draft.get('customerSpokenName', 'customer')}’ kaun sa customer hai?", "options": [{"value": x["id"], "label": x["name"]} for x in s["customers"] if x["merchantId"] == merchant]}
         if error["code"] == "MISSING_DELIVERY_DATE": return {"fieldPath": path, "code": error["code"], "question": "Delivery date kya hai? (YYYY-MM-DD)", "options": []}
         match = re.match(r"items\.(\d+)\.", path)
         if match:
             item = draft["items"][int(match.group(1))]; label = item.get("spokenName", "Item")
+            if error["code"] == "MISSING_PRODUCT_NAME": return {"fieldPath": path, "code": error["code"], "question": "Yeh item kya hai?", "options": []}
             if error["code"] == "MISSING_UNIT": return {"fieldPath": path, "code": error["code"], "question": f"{label} ki {item.get('quantity')} case ya pieces?", "options": [{"value": "case", "label": "Case / peti"}, {"value": "piece", "label": "Piece / bottle"}]}
             if error["code"] == "MISSING_QUANTITY": return {"fieldPath": path, "code": error["code"], "question": f"{label} kitna bhejna hai?", "options": []}
-            if error["code"] == "INSUFFICIENT_STOCK": return {"fieldPath": path, "code": error["code"], "question": f"{label} ka stock kam hai. Quantity badlein?", "options": []}
+            if error["code"] == "MISSING_PRICE": return {"fieldPath": path, "code": error["code"], "question": f"{label} ka rate kya hai? (per {item.get('unit', 'piece')})", "options": []}
         if error["code"] == "BALANCE_MISMATCH": return {"fieldPath": path, "code": error["code"], "question": f"System balance ₹{error['systemBalancePaise']/100:,.2f} hai. Use karein?", "options": [{"value": error["systemBalancePaise"], "label": "Use system balance"}]}
         return {"fieldPath": path, "code": error["code"], "question": "Missing information provide karein.", "options": []}
 
     def _apply_answer(self, s: dict[str, Any], merchant: str, draft: dict[str, Any], clarification: dict[str, Any], answer: Any) -> None:
         parts = clarification["fieldPath"].split(".")
-        if parts[0] == "customerId": self._owned(s["customers"], answer, merchant, "INVALID_CLARIFICATION"); draft["customerId"] = answer
+        if parts[0] == "customerId" and clarification["code"] == "MISSING_CUSTOMER":
+            require(str(answer).strip(), 400, "INVALID_CLARIFICATION", "A customer name is required")
+            draft["customerSpokenName"] = str(answer).strip()
+        elif parts[0] == "customerId": self._owned(s["customers"], answer, merchant, "INVALID_CLARIFICATION"); draft["customerId"] = answer
         elif parts[0] == "deliveryDate":
             try: draft["deliveryDate"] = date.fromisoformat(str(answer)).isoformat()
             except ValueError: raise ApiError(400, "INVALID_CLARIFICATION", "Delivery date must use YYYY-MM-DD") from None
         elif parts[0] == "items":
-            item = draft["items"][int(parts[1])]
+            index = int(parts[1]); item = draft["items"][index]
             if parts[2] == "unit": require(answer in {"case", "piece", "kg", "pouch"}, 400, "INVALID_CLARIFICATION", "Unit is invalid"); item["unit"] = answer
             elif parts[2] == "quantity": require(isinstance(answer, (int, float)) and answer > 0, 400, "INVALID_CLARIFICATION", "Quantity must be positive"); item["quantity"] = answer
+            elif parts[2] == "spokenName": require(str(answer).strip(), 400, "INVALID_CLARIFICATION", "A product name is required"); item["spokenName"] = str(answer).strip()
+            elif parts[2] == "quotedUnitPricePaise":
+                require(isinstance(answer, (int, float)) and not isinstance(answer, bool) and answer >= 0, 400, "INVALID_CLARIFICATION", "Price must be a non-negative number")
+                item["quotedUnitPricePaise"] = round(answer)
         elif parts[0] == "mentionedPreviousBalancePaise": draft[parts[0]] = int(answer)
 
     def _idempotent(self, merchant: str, route: str, key: str, body: dict[str, Any], action: Callable[[dict[str, Any]], dict[str, Any]]) -> dict[str, Any]:
@@ -464,8 +561,6 @@ class Service:
     @staticmethod
     def _public_customer(customer: dict[str, Any]) -> dict[str, Any]: return {key: copy.deepcopy(value) for key, value in customer.items() if key != "phone"}
     @staticmethod
-    def _public_reconciliation(doc: dict[str, Any]) -> dict[str, Any]: return {key: copy.deepcopy(value) for key, value in doc.items() if key != "merchantId"}
-    @staticmethod
     def _strings(values: list[Any]) -> list[str]: return list(dict.fromkeys(str(x).strip() for x in values if str(x).strip()))
     @staticmethod
     def _integer(value: Any, fallback: int) -> int: return value if isinstance(value, int) else fallback
@@ -477,11 +572,6 @@ class Service:
         if normalized in {"bottle", "bottles", "piece", "pieces", "pcs"}: return "piece"
         if normalized in {"kilo", "kg"}: return "kg"
         return normalized
-    @staticmethod
-    def _base_units(item: dict[str, Any], sku: dict[str, Any]) -> int | float: return item["quantity"] * sku.get("unitsPerCase", 1) if item["unit"] == "case" else item["quantity"]
-    @staticmethod
-    def _resolve_sku(spoken: str, skus: list[dict[str, Any]], merchant: str) -> dict[str, Any] | None:
-        lower = spoken.casefold(); return next((x for x in skus if x["merchantId"] == merchant and any(str(a).casefold() in lower for a in [x["label"], *x.get("aliases", [])])), None)
     @staticmethod
     def _safe_answer(answer: Any) -> Any: return answer[:100] if isinstance(answer, str) else answer
     def _iso(self) -> str: return self.now().isoformat()

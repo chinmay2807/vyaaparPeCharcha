@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Mic,
-  MicOff,
   Camera,
   CheckCircle2,
   AlertCircle,
@@ -23,6 +22,8 @@ import {
   CreditCard,
   ChevronRight
 } from "lucide-react";
+import { api, loadLocalDb, refreshLocalDb, getBaseUrl, setBaseUrl } from "./api";
+import { createRecorder } from "./recorder";
 
 const TRANSLATIONS = {
   en: {
@@ -239,66 +240,62 @@ const TRANSLATIONS = {
   }
 };
 
-const INITIAL_ORDERS = [
-  {
-    id: "ORD-041",
-    customer: "Ramesh Store",
-    phone: "+91 98765 43210",
-    items: [
-      { name: "Sprite", qty: "6 peti" },
-      { name: "Coke", qty: "4 Coke" },
-      { name: "Limca", qty: "20 bottles" }
-    ],
-    delivery: "Kal (Tomorrow)",
-    totalAmount: 18400,
-    pendingDue: 12500,
-    status: "Confirmed",
-    timestamp: "Just now",
-    source: "Voice STT"
-  },
-  {
-    id: "ORD-040",
-    customer: "Iqbal General Store",
-    phone: "+91 98450 12345",
-    items: [
-      { name: "Atta 10kg", qty: "5 bags" },
-      { name: "Mustard Oil 1L", qty: "12 pouches" }
-    ],
-    delivery: "Today",
-    totalAmount: 4900,
-    pendingDue: 3240,
-    status: "Dispatched",
-    timestamp: "2 hrs ago",
-    source: "Voice Note"
-  },
-  {
-    id: "ORD-039",
-    customer: "Gupta Wholesaler",
-    phone: "+91 97123 45678",
-    items: [{ name: "Basmati Rice 25kg", qty: "2 bags" }],
-    delivery: "Pending",
-    totalAmount: 11200,
-    pendingDue: 8900,
-    status: "Pending",
-    timestamp: "Yesterday",
-    source: "Supplier Bill Scan"
-  },
-  {
-    id: "ORD-038",
-    customer: "Kavita Supermart",
-    phone: "+91 99001 88223",
-    items: [
-      { name: "Surf Excel 1kg", qty: "10 packs" },
-      { name: "Vim Bar", qty: "2 cartons" }
-    ],
-    delivery: "Completed",
-    totalAmount: 3450,
-    pendingDue: 1875,
-    status: "Delivered",
-    timestamp: "2 days ago",
-    source: "Voice Note"
-  }
-];
+function ClarificationTextInput({ onSubmit, placeholder = "Type your answer" }) {
+  const [value, setValue] = useState("");
+  return (
+    <div className="flex w-full gap-2">
+      <input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={placeholder}
+        className="flex-1 px-3 py-2 rounded-xl border border-[#CAFFDE] text-xs bg-white text-[#021225]"
+      />
+      <button
+        onClick={() => value.trim() && onSubmit(value.trim())}
+        className="py-2 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
+      >
+        Send
+      </button>
+    </div>
+  );
+}
+
+function paiseToRupees(paise) {
+  return Math.round((paise || 0) / 100);
+}
+
+function orderFromSnapshot(order, invoice, customer) {
+  return {
+    id: order.orderNumber || order.id,
+    customer: customer?.name || order.customerId,
+    phone: customer?.phone || "",
+    items: order.lines.map((line) => ({
+      name: line.label,
+      qty: `${line.quantity} ${line.unit}`
+    })),
+    delivery: order.deliveryDate || "—",
+    totalAmount: paiseToRupees(order.totalPaise),
+    pendingDue: paiseToRupees(order.collectionAmountPaise),
+    status: order.status === "DELIVERED" ? "Delivered" : "Pending",
+    timestamp: order.createdAt || "",
+    source: "Voice STT",
+    invoiceUrl: invoice ? `/v1/invoices/${invoice.id}/pdf` : null
+  };
+}
+
+function ordersFromDb(db) {
+  if (!db) return [];
+  const customerById = Object.fromEntries(db.customers.map((c) => [c.id, c]));
+  const invoiceByOrderId = Object.fromEntries(db.invoices.map((inv) => [inv.orderId, inv]));
+  return [...db.orders]
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .map((order) => orderFromSnapshot(order, invoiceByOrderId[order.id], customerById[order.customerId]));
+}
+
+function totalDueFromDb(db) {
+  if (!db) return 0;
+  return Object.values(db.ledgerByCustomer || {}).reduce((sum, l) => sum + (l.balancePaise || 0), 0);
+}
 
 export default function VyapaarApp() {
   const [lang, setLang] = useState("en");
@@ -307,13 +304,56 @@ export default function VyapaarApp() {
   const [recordTimer, setRecordTimer] = useState(0);
   const [audioLevel, setAudioLevel] = useState(1);
   const [processingStep, setProcessingStep] = useState(null);
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
+  const [db, setDb] = useState(null);
+  const [orders, setOrders] = useState([]);
   const [audioPlayed, setAudioPlayed] = useState(false);
-  const [clarificationNeeded, setClarificationNeeded] = useState(false);
   const [orderFilter, setOrderFilter] = useState("all");
+  const [voiceJob, setVoiceJob] = useState(null);
+  const [transcript, setTranscript] = useState("");
+  const [draftSummary, setDraftSummary] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [baseUrlInput, setBaseUrlInput] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState(null);
 
   const timerRef = useRef(null);
+  const recorderRef = useRef(null);
   const t = TRANSLATIONS[lang];
+
+  const syncFromLaptop = async () => {
+    try {
+      const snapshot = await refreshLocalDb();
+      setDb(snapshot);
+      setOrders(ordersFromDb(snapshot));
+      setErrorMessage("");
+    } catch {
+      const cached = await loadLocalDb();
+      if (cached) {
+        setDb(cached);
+        setOrders(ordersFromDb(cached));
+      }
+      setErrorMessage("Could not reach the laptop. Showing last synced data.");
+    }
+  };
+
+  useEffect(() => {
+    getBaseUrl().then(setBaseUrlInput);
+    syncFromLaptop();
+  }, []);
+
+  const saveBaseUrl = async () => {
+    const trimmed = baseUrlInput.trim();
+    if (!trimmed) return;
+    await setBaseUrl(trimmed);
+    setBaseUrlInput(trimmed.replace(/\/+$/, ""));
+    try {
+      await api.health();
+      setConnectionStatus({ ok: true, message: "Connected to laptop." });
+      await syncFromLaptop();
+    } catch {
+      setConnectionStatus({ ok: false, message: "Could not reach this address. Check Wi-Fi and IP." });
+    }
+  };
 
   useEffect(() => {
     if (!isRecording) {
@@ -326,73 +366,123 @@ export default function VyapaarApp() {
     return () => clearInterval(interval);
   }, [isRecording]);
 
-  const toggleRecording = () => {
+  const summarizeDraft = (draft) => {
+    if (!draft) return "";
+    const parts = (draft.items || []).map((item) => `${item.quantity ?? "?"} ${item.unit ?? ""} ${item.spokenName || ""}`.trim());
+    return parts.join(", ");
+  };
+
+  const toggleRecording = async () => {
     if (isRecording) {
       clearInterval(timerRef.current);
       setIsRecording(false);
-      simulateSarvamProcessing();
+      setProcessingStep("stt");
+      setErrorMessage("");
+      try {
+        const { blob, filename } = await recorderRef.current.stop();
+        const languageHint = lang === "hi" ? "hi-IN" : lang === "ta" ? "ta-IN" : "en-IN";
+        const job = await api.submitVoiceJob(blob, filename, blob.type, languageHint);
+        setVoiceJob(job);
+        setTranscript(job.transcript || "");
+        if (job.state === "ANSWERED") {
+          setDraftSummary(job.queryResult?.answerText || "");
+          setProcessingStep("answered");
+          if (job.committedOrderId) await syncFromLaptop();
+        } else {
+          setDraftSummary(summarizeDraft(job.draft));
+          setProcessingStep(job.clarification ? "clarify" : "review");
+        }
+      } catch (error) {
+        setProcessingStep(null);
+        setErrorMessage(error.message || "Recording could not be processed");
+      }
     } else {
-      setIsRecording(true);
-      setRecordTimer(0);
-      setProcessingStep(null);
-      setAudioPlayed(false);
-      timerRef.current = setInterval(() => {
-        setRecordTimer((prev) => prev + 1);
-      }, 1000);
+      try {
+        const recorder = createRecorder();
+        await recorder.start();
+        recorderRef.current = recorder;
+        setIsRecording(true);
+        setRecordTimer(0);
+        setProcessingStep(null);
+        setAudioPlayed(false);
+        setVoiceJob(null);
+        setConfirmation(null);
+        setErrorMessage("");
+        timerRef.current = setInterval(() => {
+          setRecordTimer((prev) => prev + 1);
+        }, 1000);
+      } catch (error) {
+        setErrorMessage(error.message || "Microphone permission is required");
+      }
     }
   };
 
-  const simulateSarvamProcessing = () => {
-    setProcessingStep("stt");
-    setTimeout(() => {
-      setProcessingStep("llm");
-      setTimeout(() => {
-        setProcessingStep("clarify");
-        setClarificationNeeded(true);
-      }, 1300);
-    }, 1500);
+  const resolveClarification = async (rawAnswer) => {
+    if (!voiceJob?.clarification) return;
+    setProcessingStep("llm");
+    try {
+      const code = voiceJob.clarification.code;
+      let answer = rawAnswer;
+      if (code === "MISSING_QUANTITY") answer = Number(rawAnswer);
+      if (code === "MISSING_PRICE") answer = Math.round(Number(rawAnswer) * 100);
+      const updated = await api.clarify(voiceJob, voiceJob.revision, answer);
+      setVoiceJob(updated);
+      setDraftSummary(summarizeDraft(updated.draft));
+      setProcessingStep(updated.clarification ? "clarify" : "review");
+    } catch (error) {
+      setProcessingStep("clarify");
+      setErrorMessage(error.message || "Could not submit clarification");
+    }
   };
 
-  const resolveClarification = (choice) => {
+  const confirmOrder = async () => {
+    if (!voiceJob) return;
     setProcessingStep("tts");
-    setTimeout(() => {
+    try {
+      const languageHint = lang === "hi" ? "hi-IN" : lang === "ta" ? "ta-IN" : "en-IN";
+      const result = await api.confirm(voiceJob, voiceJob.revision, languageHint);
+      setConfirmation(result);
       setProcessingStep("done");
-      setClarificationNeeded(false);
-
-      const newEntry = {
-        id: `ORD-0${orders.length + 42}`,
-        customer: "Ramesh Store",
-        phone: "+91 98765 43210",
-        items: [
-          { name: "Sprite", qty: "6 peti" },
-          { name: "Coke", qty: "4 Coke" },
-          { name: "Limca", qty: choice === "crates" ? "20 crates" : "20 bottles" }
-        ],
-        delivery: "Kal (Tomorrow)",
-        totalAmount: 18400,
-        pendingDue: 12500,
-        status: "Confirmed",
-        timestamp: "Just now",
-        source: "Voice STT"
-      };
-      setOrders([newEntry, ...orders]);
-    }, 1200);
+      await syncFromLaptop();
+    } catch (error) {
+      setProcessingStep("review");
+      setErrorMessage(error.message || "Confirmation failed");
+    }
   };
 
-  const playTTSFeedback = () => {
+  const playTTSFeedback = async () => {
     setAudioPlayed(true);
-    if ("speechSynthesis" in window) {
-      const msg = new SpeechSynthesisUtterance(t.ttsConfirmation);
-      if (lang === "ta") {
-        msg.lang = "ta-IN";
-      } else if (lang === "hi" || lang === "hinglish") {
-        msg.lang = "hi-IN";
-      } else {
-        msg.lang = "en-IN";
+    if (confirmation?.artifacts?.audio?.url) {
+      try {
+        const url = await api.artifactUrl(confirmation.artifacts.audio.url);
+        new Audio(url).play();
+        return;
+      } catch {
+        setErrorMessage("Could not play confirmation audio");
       }
+    }
+    if ("speechSynthesis" in window && confirmation?.confirmationText) {
+      const msg = new SpeechSynthesisUtterance(confirmation.confirmationText);
+      msg.lang = lang === "ta" ? "ta-IN" : lang === "hi" || lang === "hinglish" ? "hi-IN" : "en-IN";
       window.speechSynthesis.speak(msg);
     }
   };
+
+  const playAnswerAudio = () => {
+    setAudioPlayed(true);
+    const answer = voiceJob?.voiceAnswer;
+    if (answer?.status === "READY" && answer.audioBase64) {
+      new Audio(`data:${answer.contentType};base64,${answer.audioBase64}`).play();
+      return;
+    }
+    if ("speechSynthesis" in window && voiceJob?.queryResult?.answerText) {
+      const msg = new SpeechSynthesisUtterance(voiceJob.queryResult.answerText);
+      msg.lang = lang === "ta" ? "ta-IN" : lang === "hi" || lang === "hinglish" ? "hi-IN" : "en-IN";
+      window.speechSynthesis.speak(msg);
+    }
+  };
+
+  const totalPendingRupees = paiseToRupees(totalDueFromDb(db));
 
   const filteredOrders = orders.filter((o) => {
     if (orderFilter === "all") return true;
@@ -517,7 +607,7 @@ export default function VyapaarApp() {
                     <span className="text-[10px] text-[#238689] uppercase font-bold tracking-wider">{t.pendingCredit}</span>
                     <TrendingUp className="w-4 h-4 text-[#238689]" />
                   </div>
-                  <p className="text-lg font-bold text-[#021225]">₹12,500</p>
+                  <p className="text-lg font-bold text-[#021225]">₹{totalPendingRupees.toLocaleString("en-IN")}</p>
                   <p className="text-[10px] text-[#021225]/60 mt-0.5">{t.creditDesc}</p>
                 </div>
 
@@ -526,10 +616,15 @@ export default function VyapaarApp() {
                     <span className="text-[10px] text-[#25C5E9] uppercase font-bold tracking-wider">{t.ordersToday}</span>
                     <Package className="w-4 h-4 text-[#25C5E9]" />
                   </div>
-                  <p className="text-lg font-bold text-[#021225]">{t.activeOrdersDesc}</p>
-                  <p className="text-[10px] text-[#021225]/60 mt-0.5">₹18,400 active</p>
+                  <p className="text-lg font-bold text-[#021225]">{orders.length} Orders</p>
+                  <p className="text-[10px] text-[#021225]/60 mt-0.5">{db?.customers?.length ?? 0} customers</p>
                 </div>
               </div>
+              {errorMessage && (
+                <div className="px-3 py-2 rounded-xl bg-[#FDE8E8] border border-[#F5B5B5] text-[10.5px] text-[#7A1F1F]">
+                  {errorMessage}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="grid grid-cols-3 gap-2.5">
@@ -691,7 +786,7 @@ export default function VyapaarApp() {
                       {t.pipelineTitle}
                     </span>
                     <span className="text-[10px] font-mono uppercase text-[#238689] bg-[#CAFFDE]/50 px-2 py-0.5 rounded-full border border-[#CAFFDE] font-bold">
-                      {processingStep === "done" ? t.verified : t.analyzing}
+                      {processingStep === "done" || processingStep === "answered" ? t.verified : t.analyzing}
                     </span>
                   </div>
 
@@ -708,7 +803,7 @@ export default function VyapaarApp() {
                         {t.sttLabel}
                       </p>
                       <p className="text-[11px] text-[#021225]/70 italic mt-0.5">
-                        "{t.sttSample}"
+                        {transcript ? `"${transcript}"` : "Transcribing..."}
                       </p>
                     </div>
                   </div>
@@ -728,48 +823,89 @@ export default function VyapaarApp() {
                         {t.llmLabel}
                       </p>
                       <p className="text-[11px] text-[#238689] font-mono font-medium mt-0.5">
-                        {t.llmSample}
+                        {draftSummary || "Extracting order details..."}
                       </p>
                     </div>
                   </div>
 
-                  {clarificationNeeded && (
+                  {voiceJob?.clarification && (
                     <div className="bg-[#CAFFDE]/30 border border-[#CAFFDE] rounded-2xl p-4 my-2 space-y-2.5 shadow-xs">
                       <div className="flex items-center space-x-2 text-[#238689] text-xs font-bold">
                         <AlertCircle className="w-4 h-4 flex-shrink-0" />
                         <span>{t.clarificationTitle}</span>
                       </div>
                       <p className="text-xs text-[#021225]">
-                        {t.clarificationPrompt}
+                        {voiceJob.clarification.question || voiceJob.clarification.code}
                       </p>
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          onClick={() => resolveClarification("bottles")}
-                          className="flex-1 py-2 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
-                        >
-                          {t.bottles}
-                        </button>
-                        <button
-                          onClick={() => resolveClarification("crates")}
-                          className="flex-1 py-2 px-3 bg-white hover:bg-slate-50 text-[#238689] border border-[#CAFFDE] rounded-xl text-xs font-bold transition shadow-xs"
-                        >
-                          {t.crates}
-                        </button>
+                      <div className="flex gap-2 pt-1 flex-wrap">
+                        {voiceJob.clarification.options?.length ? (
+                          voiceJob.clarification.options.map((option) => (
+                            <button
+                              key={option.value}
+                              onClick={() => resolveClarification(option.value)}
+                              className="flex-1 py-2 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                            >
+                              {option.label}
+                            </button>
+                          ))
+                        ) : (
+                          <ClarificationTextInput
+                            onSubmit={resolveClarification}
+                            placeholder={
+                              voiceJob.clarification.code === "MISSING_PRICE"
+                                ? "Price in ₹ (e.g. 50)"
+                                : voiceJob.clarification.code === "MISSING_QUANTITY"
+                                ? "Quantity (e.g. 3)"
+                                : "Type your answer"
+                            }
+                          />
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {processingStep === "done" && (
+                  {voiceJob && !voiceJob.clarification && processingStep === "review" && !confirmation && (
+                    <div className="bg-[#CAFFDE]/30 border border-[#CAFFDE] rounded-2xl p-4 my-2 space-y-2.5 shadow-xs">
+                      <p className="text-xs font-bold text-[#021225]">Review before confirming</p>
+                      <p className="text-[11px] text-[#021225]/80">{draftSummary}</p>
+                      <button
+                        onClick={confirmOrder}
+                        className="w-full py-2.5 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                      >
+                        Confirm order
+                      </button>
+                    </div>
+                  )}
+
+                  {processingStep === "done" && confirmation && (
                     <div className="pt-2.5 border-t border-[#CAFFDE] flex items-center justify-between">
                       <div className="flex items-center space-x-2">
                         <Check className="w-4 h-4 text-[#238689]" />
                         <span className="text-xs text-[#021225] font-bold">
-                          {t.ledgerSuccess}
+                          {confirmation.order.orderNumber} {t.ledgerSuccess}
                         </span>
                       </div>
                       <button
                         onClick={playTTSFeedback}
                         className="flex items-center space-x-1.5 text-xs bg-[#CAFFDE]/50 hover:bg-[#CAFFDE] text-[#238689] font-bold px-3 py-1.5 rounded-full border border-[#CAFFDE] transition"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>{audioPlayed ? t.replayBtn : t.listenBtn}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {processingStep === "answered" && voiceJob?.queryResult && (
+                    <div className="pt-2.5 border-t border-[#CAFFDE] flex items-center justify-between gap-2">
+                      <div className="flex items-center space-x-2">
+                        <Check className="w-4 h-4 text-[#238689]" />
+                        <span className="text-xs text-[#021225] font-bold">
+                          {voiceJob.queryResult.answerText}
+                        </span>
+                      </div>
+                      <button
+                        onClick={playAnswerAudio}
+                        className="flex items-center space-x-1.5 text-xs bg-[#CAFFDE]/50 hover:bg-[#CAFFDE] text-[#238689] font-bold px-3 py-1.5 rounded-full border border-[#CAFFDE] transition flex-shrink-0"
                       >
                         <Volume2 className="w-3.5 h-3.5" />
                         <span>{audioPlayed ? t.replayBtn : t.listenBtn}</span>
@@ -798,7 +934,7 @@ export default function VyapaarApp() {
 
               {/* Filter Pills */}
               <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px]">
-                {["all", "confirmed", "dispatched", "pending", "delivered"].map((status) => (
+                {["all", "pending", "delivered"].map((status) => (
                   <button
                     key={status}
                     onClick={() => setOrderFilter(status)}
@@ -1015,6 +1151,34 @@ export default function VyapaarApp() {
                   </div>
                   <ChevronRight className="w-4 h-4 text-[#238689]" />
                 </div>
+              </div>
+
+              <div className="bg-white/90 border border-[#CAFFDE] rounded-3xl p-4 space-y-2.5 shadow-xs">
+                <p className="text-xs font-bold text-[#021225] flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#238689]" /> Laptop connection
+                </p>
+                <p className="text-[10px] text-[#021225]/70">
+                  Enter the laptop's Wi-Fi IP shown by <code>ipconfig</code>. Phone and laptop must be on the same network.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    value={baseUrlInput}
+                    onChange={(e) => setBaseUrlInput(e.target.value)}
+                    placeholder="http://192.168.1.42:8000"
+                    className="flex-1 px-3 py-2 rounded-xl border border-[#CAFFDE] text-xs bg-white text-[#021225]"
+                  />
+                  <button
+                    onClick={saveBaseUrl}
+                    className="py-2 px-3 bg-[#238689] hover:bg-[#1b6b6d] text-white rounded-xl text-xs font-bold transition shadow-xs"
+                  >
+                    Save & Test
+                  </button>
+                </div>
+                {connectionStatus && (
+                  <p className={`text-[10.5px] font-semibold ${connectionStatus.ok ? "text-[#238689]" : "text-[#7A1F1F]"}`}>
+                    {connectionStatus.message}
+                  </p>
+                )}
               </div>
 
               <div className="p-4 bg-white/80 border border-[#CAFFDE] rounded-2xl text-[11px] text-[#021225]/80 space-y-1">

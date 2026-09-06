@@ -2,22 +2,22 @@
 
 | Requirement | Proof |
 |---|---|
-| Seed merchant, customers, and 30 SKU aliases | `.\.venv\Scripts\vyapaar-reset.exe`; `GET /v1/customers` and `/v1/skus` |
+| Seed merchant and customers | `.\.venv\Scripts\vyapaar-reset.exe`; `GET /v1/customers` |
 | Android recording upload over LAN | FastAPI multipart mobile route and end-to-end artifact test |
 | Durable voice workflow | crash-safe JSON store and FastAPI workflow test |
 | Transcript and detected language available | voice-job response |
 | Sarvam speech with Azure reasoning | live hybrid-provider smoke test and Azure contract tests |
-| Spoken quote and collection preserved | draft, invoice, and ledger assertion in API tests |
+| No product catalog: spoken product name is the order line's identity | offline provider and API tests with unrecognized product names |
+| Spoken quote, unit, and collection preserved | draft, invoice, and ledger assertion in API tests |
 | Schema-valid extraction or recoverable error | domain/provider contract tests |
-| One focused clarification | domain policy and end-to-end API test |
+| Only genuinely necessary clarifications (price only; date/quantity/unit default; customer auto-created) | API tests for defaulting and clarification-minimization behavior |
 | Immutable review edits | new revision; stale confirm returns `STALE_DRAFT` |
-| No pre-confirm mutation | API test compares order, stock, invoice, and ledger before confirm |
+| No pre-confirm mutation | API test compares order, invoice, and ledger before confirm |
 | Atomic, idempotent confirmation | rollback/idempotency tests and database unique indexes |
-| Invoice, stock, and ledger reconcile | transaction and PDF tests |
+| Invoice and ledger reconcile | transaction and PDF tests |
 | PDF and Sarvam audio returned to phone | mobile confirmation returns downloadable artifact URLs |
-| Reviewable bill extraction | remains `REVIEW_REQUIRED` until explicit apply |
-| Evaluation/demo fallback | 50-case fixture and deterministic provider |
+| Evaluation/demo fallback | deterministic offline provider |
 | Tenant isolation | cross-merchant authorization tests |
 | Retention and PII policy | `docs/PRIVACY.md` |
 
-Run `.\.venv\Scripts\python.exe -m unittest discover -s tests -v`. Live Sarvam smoke tests are separate and require a key and budget cap. The Android UI is intentionally not implemented in the current backend scope.
+Run `.\.venv\Scripts\python.exe -m unittest discover -s tests -v`. Live Sarvam smoke tests are separate and require a key and budget cap. The Android UI is implemented (`app/`) and wired to this backend; see `CONTEXT.md`/`HISTORY.md`.

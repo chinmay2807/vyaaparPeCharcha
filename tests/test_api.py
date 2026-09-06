@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import copy
 import unittest
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -33,16 +32,27 @@ class ApiTests(unittest.TestCase):
         ) else response.json()
         return response.status_code, response.headers, payload
 
-    def test_openapi_health_catalog_and_request_id(self):
+    def test_openapi_health_and_request_id(self):
         status, headers, health = self.request("/health")
         self.assertEqual((status, health["status"]), (200, "ok"))
         self.assertTrue(headers["X-Request-Id"])
         self.assertEqual(self.client.get("/openapi.json").status_code, 200)
-        _, _, catalog = self.request("/v1/skus")
-        self.assertEqual(len(catalog["skus"]), 30)
         _, _, customer = self.request("/v1/customers?query=ramesh")
         self.assertEqual(len(customer["customers"]), 1)
         self.assertNotIn("phone", customer["customers"][0])
+
+    def test_mobile_sync_returns_full_merchant_snapshot(self):
+        status, _, body = self.request("/v1/mobile/sync")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["merchant"]["id"], "mer_demo")
+        self.assertEqual(len(body["customers"]), 2)
+        self.assertNotIn("phone", body["customers"][0])
+        ramesh = next(c for c in body["customers"] if c["id"] == "cus_ramesh")
+        ledger = body["ledgerByCustomer"][ramesh["id"]]
+        self.assertEqual(ledger["balancePaise"], 1_250_000)
+        self.assertEqual(len(ledger["entries"]), 1)
+        other_merchant = self.request("/v1/mobile/sync", merchant="mer_other")
+        self.assertEqual(other_merchant[2]["error"]["code"], "MERCHANT_NOT_FOUND")
 
     def test_mutation_idempotency_is_atomic_and_rejects_conflicts(self):
         status, _, body = self.request("/v1/customers", "POST", {"name": "A"})
@@ -57,34 +67,25 @@ class ApiTests(unittest.TestCase):
     def test_voice_review_confirm_pdf_audio_ledger_and_no_preconfirm_mutation(self):
         submitted = self.request(
             "/v1/voice-jobs", "POST",
-            {"transcript": "Ramesh ko kal 6 peti Sprite aur 4 Coke bhejna. last ₹12,500 pending"},
+            {"transcript": "Ramesh ko kal 6 peti Sprite @500 aur 4 case Coke @600 bhejna. last ₹12,500 pending"},
             "voicejob-001",
         )[2]
-        self.assertEqual(submitted["clarification"]["code"], "MISSING_UNIT")
+        self.assertIsNone(submitted["clarification"])
+        self.assertEqual(submitted["state"], "READY_FOR_REVIEW")
         state = self.store.snapshot()
-        self.assertEqual(
-            (len(state["orders"]), len(state["invoices"]), len(state["inventoryMovements"])),
-            (0, 0, 0),
-        )
+        self.assertEqual((len(state["orders"]), len(state["invoices"])), (0, 0))
         stale = self.request(
-            f"/v1/voice-jobs/{submitted['id']}/clarifications", "POST",
-            {"revision": 99, "answer": "case"}, "clarify-stale",
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": 99, "spokenConfirmation": True}, "confirm-stale",
         )[2]
         self.assertEqual(stale["error"]["code"], "STALE_DRAFT")
-        clarified = self.request(
-            f"/v1/voice-jobs/{submitted['id']}/clarifications", "POST",
-            {"revision": 1, "answer": "case"}, "clarify-good",
-        )[2]
-        confirmation = {"revision": 2, "spokenConfirmation": True}
+        confirmation = {"revision": 1, "spokenConfirmation": True}
         confirmed = self.request(
             f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
             confirmation, "confirm-good",
         )[2]
         state = self.store.snapshot()
-        self.assertEqual(
-            (len(state["orders"]), len(state["invoices"]), len(state["inventoryMovements"])),
-            (1, 1, 2),
-        )
+        self.assertEqual((len(state["orders"]), len(state["invoices"])), (1, 1))
         self.assertTrue(base64.b64decode(
             confirmed["voiceConfirmation"]["audioBase64"]
         ).startswith(b"RIFF"))
@@ -105,19 +106,16 @@ class ApiTests(unittest.TestCase):
     def test_failed_confirmation_rolls_back_all_effects(self):
         submitted = self.request(
             "/v1/voice-jobs", "POST",
-            {"transcript": "Ramesh ko kal 1 peti Sprite bhejna"}, "voice-rollback",
+            {"transcript": "Ramesh ko kal 1 peti Sprite @500 bhejna"}, "voice-rollback",
         )[2]
-        self.store.transaction(lambda state: next(
-            item for item in state["skus"] if item["id"] == "sku_sprite_24x250"
-        ).update({"stockBaseUnits": 0}))
         before = self.store.snapshot()
         failed = self.request(
             f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
-            {"revision": 1}, "confirm-rollback",
+            {"revision": 99, "spokenConfirmation": True}, "confirm-rollback",
         )
-        self.assertEqual(failed[2]["error"]["code"], "INSUFFICIENT_STOCK")
+        self.assertEqual(failed[2]["error"]["code"], "STALE_DRAFT")
         after = self.store.snapshot()
-        for collection in ("orders", "invoices", "ledgerEntries", "inventoryMovements", "outboxEvents"):
+        for collection in ("orders", "invoices", "ledgerEntries", "outboxEvents"):
             self.assertEqual(after[collection], before[collection])
 
     def test_spoken_quote_and_collection_are_committed(self):
@@ -125,7 +123,7 @@ class ApiTests(unittest.TestCase):
             def extract_order(self, transcript, merchant_context):
                 draft = super().extract_order(transcript, merchant_context)
                 draft["items"][0]["quoted_unit_price"] = 2500
-                draft["items"][0]["unit"] = "crate"
+                draft["items"][0]["unit"] = "case"
                 draft["collection_amount"] = 10000
                 draft["collection_evidence"] = "collect INR 10,000"
                 return draft
@@ -144,9 +142,7 @@ class ApiTests(unittest.TestCase):
         )[2]
         self.assertEqual(confirmed["order"]["totalPaise"], 750000)
         self.assertEqual(confirmed["order"]["collectionAmountPaise"], 1000000)
-        self.assertEqual(confirmed["order"]["lines"][0]["priceSource"], "SPOKEN_QUOTE")
         self.assertEqual(confirmed["order"]["lines"][0]["unit"], "case")
-        self.assertEqual(confirmed["order"]["lines"][0]["baseUnits"], 72)
         entries = [entry for entry in self.store.snapshot()["ledgerEntries"]
                    if entry.get("orderId") == confirmed["order"]["id"]]
         self.assertEqual([entry["type"] for entry in entries], ["SALES_INVOICE", "PAYMENT_COLLECTION"])
@@ -155,7 +151,7 @@ class ApiTests(unittest.TestCase):
     def test_edit_creates_immutable_revision(self):
         submitted = self.request(
             "/v1/voice-jobs", "POST",
-            {"transcript": "Ramesh ko kal 1 peti Sprite bhejna"}, "voice-edit-01",
+            {"transcript": "Ramesh ko kal 1 peti Sprite @500 bhejna"}, "voice-edit-01",
         )[2]
         edited = self.request(
             f"/v1/voice-jobs/{submitted['id']}/draft", "PATCH",
@@ -167,22 +163,130 @@ class ApiTests(unittest.TestCase):
             ["2026-09-06", "2026-09-08"],
         )
 
-    def test_missing_delivery_date_can_be_clarified(self):
+    def test_missing_delivery_date_defaults_to_today_without_asking(self):
         submitted = self.request(
             "/v1/voice-jobs", "POST",
-            {"transcript": "Ramesh ko 1 peti Sprite bhejna"}, "voice-date-01",
+            {"transcript": "Ramesh ko 1 peti Sprite @500 bhejna"}, "voice-date-01",
         )[2]
-        self.assertEqual(submitted["clarification"]["code"], "MISSING_DELIVERY_DATE")
-        clarified = self.request(
+        self.assertIsNone(submitted["clarification"])
+        self.assertEqual(submitted["draft"]["deliveryDate"], "2026-09-05")
+
+    def test_relative_delivery_date_is_resolved_without_asking(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 1 peti Sprite @500 bhejna"}, "voice-date-02",
+        )[2]
+        self.assertIsNone(submitted["clarification"])
+        self.assertEqual(submitted["draft"]["deliveryDate"], "2026-09-06")
+
+    def test_missing_item_quantity_defaults_to_one(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko Sprite case @500 bhejna"}, "voice-qty-01",
+        )[2]
+        self.assertEqual(submitted["draft"]["items"][0]["quantity"], 1)
+
+    def test_missing_unit_defaults_to_piece(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 4 Coke @15 bhejna"}, "voice-unit-01",
+        )[2]
+        self.assertIsNone(submitted["clarification"])
+        self.assertEqual(submitted["draft"]["items"][0]["unit"], "piece")
+
+    def test_missing_price_is_the_only_thing_still_asked_for_an_item(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 4 case Coke bhejna"}, "voice-price-01",
+        )[2]
+        self.assertEqual(submitted["clarification"]["code"], "MISSING_PRICE")
+        answered = self.request(
             f"/v1/voice-jobs/{submitted['id']}/clarifications", "POST",
-            {"revision": 1, "answer": "2026-09-05"}, "clarify-date-01",
+            {"revision": 1, "answer": 60000}, "voice-price-01-answer",
         )[2]
-        self.assertEqual(clarified["state"], "READY_FOR_REVIEW")
-        self.assertEqual(clarified["draft"]["deliveryDate"], "2026-09-05")
+        self.assertIsNone(answered["clarification"])
+        self.assertEqual(answered["draft"]["items"][0]["quotedUnitPricePaise"], 60000)
+
+    def test_any_spoken_product_name_becomes_the_order_line_with_no_catalog(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 5 piece Random Unknown Gadget @200 bhejna"},
+            "voice-nocatalog-01",
+        )[2]
+        self.assertIsNone(submitted["clarification"])
+        item = submitted["draft"]["items"][0]
+        self.assertEqual(item["spokenName"], "Random Unknown Gadget")
+        self.assertNotIn("skuId", item)
+        confirmed = self.request(
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": 1, "spokenConfirmation": False}, "confirm-nocatalog-01",
+        )[2]
+        line = confirmed["order"]["lines"][0]
+        self.assertEqual(line["label"], "Random Unknown Gadget")
+        self.assertEqual(line["quantity"], 5)
+        self.assertEqual(line["unitPricePaise"], 20000)
+        self.assertEqual(line["lineTotalPaise"], 100000)
+
+    def test_unmatched_customer_becomes_a_new_customer_only_at_confirm(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Suresh ko kal 1 peti Sprite @500 bhejna"}, "voice-newcust-01",
+        )[2]
+        self.assertIsNone(submitted["clarification"])
+        self.assertEqual(submitted["state"], "READY_FOR_REVIEW")
+        self.assertIsNone(submitted["draft"]["customerId"])
+        before = self.store.snapshot()
+        self.assertEqual(len(before["customers"]), 2)
+        confirmed = self.request(
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": 1, "spokenConfirmation": False}, "confirm-newcust-01",
+        )[2]
+        after = self.store.snapshot()
+        self.assertEqual(len(after["customers"]), 3)
+        new_customer = next(c for c in after["customers"] if c["id"] == confirmed["order"]["customerId"])
+        self.assertEqual(new_customer["name"], "Suresh")
+
+    def test_query_orders_answers_without_a_draft_or_clarification(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 3 case Sprite @500 bhejna"}, "voice-query-order-01",
+        )[2]
+        self.request(
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": submitted["revision"], "spokenConfirmation": False}, "confirm-query-order-01",
+        )
+        answered = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "How many pending orders does Ramesh have?"}, "voice-query-01",
+        )[2]
+        self.assertEqual(answered["state"], "ANSWERED")
+        self.assertIsNone(answered["draft"])
+        self.assertIsNone(answered["clarification"])
+        self.assertEqual(answered["queryResult"]["orderCount"], 1)
+        self.assertIn("voiceAnswer", answered)
+
+    def test_update_order_status_marks_the_oldest_undelivered_order_delivered(self):
+        submitted = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Ramesh ko kal 3 case Sprite @500 bhejna"}, "voice-status-order-01",
+        )[2]
+        confirmed = self.request(
+            f"/v1/voice-jobs/{submitted['id']}/confirm", "POST",
+            {"revision": submitted["revision"], "spokenConfirmation": False}, "confirm-status-order-01",
+        )[2]
+        answered = self.request(
+            "/v1/voice-jobs", "POST",
+            {"transcript": "Mark Ramesh order delivered"}, "voice-status-01",
+        )[2]
+        self.assertEqual(answered["state"], "ANSWERED")
+        self.assertEqual(answered["committedOrderId"], confirmed["order"]["id"])
+        after = self.store.snapshot()
+        order = next(o for o in after["orders"] if o["id"] == confirmed["order"]["id"])
+        self.assertEqual(order["status"], "DELIVERED")
 
     def test_android_multipart_flow_returns_reachable_pdf_and_audio(self):
         headers = {"Idempotency-Key": "android-voice-001", "X-Merchant-Id": "mer_demo"}
-        recording = b"TRANSCRIPT: Ramesh ko kal 1 peti Sprite bhejna"
+        recording = b"TRANSCRIPT: Ramesh ko kal 1 peti Sprite @500 bhejna"
         submitted = self.client.post(
             "/v1/mobile/voice-jobs", headers=headers,
             files={"audio": ("order.m4a", recording, "audio/mp4")},
@@ -206,20 +310,6 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(pdf.content.startswith(b"%PDF"))
         self.assertTrue(audio.headers["content-type"].startswith("audio/"))
         self.assertTrue(audio.content.startswith(b"RIFF"))
-
-    def test_reconciliation_review_apply_and_replay(self):
-        body = {"documentName": "supplier.pdf", "invoiceNumber": "SUP-9", "items": [
-            {"spokenName": "Sprite case", "quantity": 2, "unit": "case", "unitCostPaise": 60000}
-        ]}
-        created = self.request("/v1/reconciliation-documents", "POST", body, "recon-create")[2]
-        self.assertEqual(created["state"], "REVIEW_REQUIRED")
-        before = self.store.snapshot()["skus"][0]["stockBaseUnits"]
-        applied = self.request(
-            f"/v1/reconciliation-documents/{created['id']}/apply", "POST",
-            {"revision": 1}, "recon-apply",
-        )[2]
-        self.assertEqual(applied["state"], "APPLIED")
-        self.assertEqual(self.store.snapshot()["skus"][0]["stockBaseUnits"], before + 48)
 
     def test_merchant_isolation(self):
         status, _, body = self.request(

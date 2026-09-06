@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .providers import create_provider
-from .routers import catalog, mobile, reconciliation, voice
+from .routers import catalog, mobile, voice
 from .service import ApiError, Service
 from .store import JsonStore
 
@@ -96,7 +96,6 @@ def create_app(service: Service | None = None) -> FastAPI:
 
     app.include_router(catalog.router)
     app.include_router(voice.router)
-    app.include_router(reconciliation.router)
     app.include_router(mobile.router)
     return app
 

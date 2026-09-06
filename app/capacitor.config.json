@@ -1,5 +1,8 @@
 {
   "appId": "com.vyapaar.app",
   "appName": "Vyapaar Pe Charcha",
-  "webDir": "dist"
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http"
+  }
 }

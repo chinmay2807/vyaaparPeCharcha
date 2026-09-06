@@ -22,19 +22,6 @@ class CustomerCreate(ApiModel):
     credit_limit_paise: int = Field(0, alias="creditLimitPaise", ge=0)
 
 
-class SkuCreate(ApiModel):
-    label: str
-    aliases: list[str] = Field(default_factory=list)
-    base_unit: str = Field(alias="baseUnit")
-    units_per_case: int = Field(1, alias="unitsPerCase", ge=1)
-    selling_price_paise: int = Field(alias="sellingPricePaise", ge=0)
-    stock_base_units: int = Field(0, alias="stockBaseUnits", ge=0)
-
-
-class AliasCreate(ApiModel):
-    alias: str
-
-
 class UploadCreate(ApiModel):
     content_type: str = Field(alias="contentType")
     size_bytes: int = Field(alias="sizeBytes", gt=0, le=15 * 1024 * 1024)
@@ -71,20 +58,3 @@ class ConfirmRequest(RevisionRequest):
 class MobileConfirmRequest(RevisionRequest):
     spoken_confirmation: bool = Field(True, alias="spokenConfirmation")
     language: str = "hi-IN"
-
-
-class ReconciliationItem(ApiModel):
-    spoken_name: str = Field(alias="spokenName")
-    quantity: float = Field(gt=0)
-    unit: str
-    unit_cost_paise: int = Field(0, alias="unitCostPaise", ge=0)
-
-
-class ReconciliationCreate(ApiModel):
-    document_name: str = Field(alias="documentName")
-    content_type: str | None = Field(None, alias="contentType")
-    document_base64: str | None = Field(None, alias="documentBase64")
-    supplier_name: str | None = Field(None, alias="supplierName")
-    invoice_number: str | None = Field(None, alias="invoiceNumber")
-    invoice_date: str | None = Field(None, alias="invoiceDate")
-    items: list[ReconciliationItem] = Field(default_factory=list)

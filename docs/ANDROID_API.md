@@ -31,7 +31,11 @@ audio=<binary recording>
 language_hint=hi-IN
 ```
 
-Use the same idempotency key when retrying the same request. Sarvam translates speech to English, then Azure OpenAI produces the structured draft. A successful response is `202` and contains `id`, `state`, `revision`, `transcript`, `draft`, one optional `clarification`, and navigation `links`. Explicit spoken values are exposed as `draft.items[].quotedUnitPricePaise` and `draft.collectionAmountPaise`.
+Use the same idempotency key when retrying the same request. Sarvam translates speech to English, then Azure OpenAI classifies the transcript into one of three intents and produces its structured output.
+
+For an order (`create_sales_order`), a successful response is `202` and contains `id`, `state` (`NEEDS_CLARIFICATION` or `READY_FOR_REVIEW`), `revision`, `transcript`, `draft`, one optional `clarification`, and navigation `links`. Explicit spoken values are exposed as `draft.items[].quotedUnitPricePaise` and `draft.collectionAmountPaise`.
+
+For a read-only question about existing orders ("how many orders are pending for Ramesh") or a spoken status update ("mark Ramesh's order delivered"), the response is terminal immediately: `state` is `ANSWERED`, `draft` and `clarification` are both `null`, and `queryResult.answerText` holds the answer (also spoken back via `voiceAnswer.audioBase64`). A status update additionally sets `committedOrderId` to the order it changed. There is no clarify/confirm step for these — render the answer and stop. A status update always marks the customer's oldest not-yet-delivered order unless an order number was explicitly spoken, in which case that exact order is used.
 
 ## 3. Answer a clarification
 
@@ -55,7 +59,7 @@ Content-Type: application/json
 {"revision": 2, "spokenConfirmation": true, "language": "hi-IN"}
 ```
 
-The server performs the order, stock, invoice, ledger and outbox writes atomically. The response contains:
+The server performs the order, invoice, ledger and outbox writes atomically. There is no product catalog: the spoken product name is the order line's identity directly. The response contains:
 
 ```json
 {

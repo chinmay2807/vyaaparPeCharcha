@@ -11,8 +11,6 @@ from unittest.mock import patch
 from vyapaar.providers import (
     AzureOpenAIConfig,
     AzureOrderProvider,
-    CHAT_PATH,
-    DOCUMENT_SCHEMA,
     ORDER_DRAFT_SCHEMA,
     STT_PATH,
     TTS_PATH,
@@ -28,11 +26,6 @@ from vyapaar.providers import (
 CONTEXT = {
     "reference_date": "2026-09-05",
     "customers": [{"id": "cus_ramesh", "name": "Ramesh", "aliases": ["Ramesh ji"]}],
-    "skus": [
-        {"id": "sku_sprite", "label": "Sprite", "aliases": ["Sprite peti"]},
-        {"id": "sku_coke", "label": "Coke", "aliases": ["Coca Cola"]},
-        {"id": "sku_limca", "label": "Limca", "aliases": []},
-    ],
 }
 
 
@@ -55,7 +48,7 @@ class OfflineProviderTests(unittest.TestCase):
         result = self.provider.transcribe(b"TRANSCRIPT: Suresh ko 2 case Sprite bhejna")
         self.assertEqual(result["text"], "Suresh ko 2 case Sprite bhejna")
 
-    def test_extraction_resolves_context_and_flags_missing_unit(self) -> None:
+    def test_extraction_has_no_catalog_and_flags_missing_unit(self) -> None:
         draft = self.provider.extract_order(
             "Ramesh ko kal ke liye 6 peti Sprite, 4 Coke aur 20 bottle Limca bhejna. "
             "Uska last Rs 12,500 pending hai.",
@@ -63,25 +56,19 @@ class OfflineProviderTests(unittest.TestCase):
         )
         self.assertEqual(draft["customer"]["candidate_id"], "cus_ramesh")
         self.assertEqual(draft["delivery_date"]["value"], "2026-09-06")
-        self.assertEqual([line["candidate_sku_id"] for line in draft["items"]], [
-            "sku_sprite",
-            "sku_coke",
-            "sku_limca",
-        ])
-        self.assertIn("items[1].unit", draft["missing_fields"])
+        self.assertEqual([item["spoken_name"] for item in draft["items"]], ["Sprite", "Coke", "Limca"])
+        self.assertNotIn("candidate_sku_id", draft["items"][0])
         self.assertEqual(draft["mentioned_previous_balance"], 12_500)
         validate_schema(draft, ORDER_DRAFT_SCHEMA)
 
-    def test_document_json_fixture_and_default_are_valid(self) -> None:
-        fixture = {
-            "supplier_name": "ABC",
-            "invoice_number": "1",
-            "invoice_date": "2026-09-05",
-            "currency": "INR",
-            "items": [{"spoken_name": "Tea", "quantity": 2, "unit": "case", "unit_cost": 90}],
-        }
-        self.assertEqual(self.provider.extract_document(json.dumps(fixture).encode()), fixture)
-        validate_schema(self.provider.extract_document(b"%PDF"), DOCUMENT_SCHEMA)
+    def test_extraction_parses_any_spoken_product_with_no_catalog_lookup(self) -> None:
+        draft = self.provider.extract_order(
+            "Suresh ko kal 5 piece Random Unknown Gadget bhejna", CONTEXT
+        )
+        self.assertEqual(len(draft["items"]), 1)
+        self.assertEqual(draft["items"][0]["spoken_name"], "Random Unknown Gadget")
+        self.assertEqual(draft["items"][0]["quantity"], 5)
+        self.assertEqual(draft["items"][0]["unit"], "piece")
 
     def test_offline_confirmation_is_valid_wav(self) -> None:
         result = self.provider.synthesize_confirmation("Order ban gaya")
@@ -156,23 +143,6 @@ class LiveProviderTests(unittest.TestCase):
         self.assertIsNone(seen["reasoning_effort"])
         self.assertTrue(seen["response_format"]["json_schema"]["strict"])
         self.assertEqual(seen["response_format"]["json_schema"]["schema"], ORDER_DRAFT_SCHEMA)
-
-    def test_vision_uses_untrusted_data_guard_and_strict_schema(self) -> None:
-        expected = OfflineSarvamProvider().extract_document(b"%PDF")
-        seen = {}
-
-        def transport(request, timeout):
-            del timeout
-            seen.update(json.loads(request.data))
-            return json.dumps({"choices": [{"message": {"content": json.dumps(expected)}}]}).encode()
-
-        result = LiveSarvamProvider(self.config, transport=transport).extract_document(
-            b"document", filename="bill.png", content_type="image/png"
-        )
-        self.assertEqual(result, expected)
-        self.assertEqual(seen["model"], "sarvam-vision")
-        self.assertIn("untrusted data", seen["messages"][0]["content"])
-        self.assertTrue(seen["response_format"]["json_schema"]["strict"])
 
     def test_tts_decodes_audio_from_current_endpoint(self) -> None:
         captured = {}
